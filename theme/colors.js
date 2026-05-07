@@ -1,0 +1,17 @@
+export const colors = {
+  bg: '#0d0d1a',
+  surface: '#1a1a2e',
+  surfaceDeep: '#12122a',
+  border: '#2a2a4a',
+  primary: '#7F77DD',
+  primaryDark: '#534AB7',
+  primaryLight: '#26215C',
+  accent: '#5DCAA5',
+  pink: '#D4537E',
+  text: '#E8E8F0',
+  textMuted: '#8888AA',
+  textDim: '#555570',
+  white: '#FFFFFF',
+  brown1: '#8B4513',
+  tileColors: ['#7F77DD', '#5DCAA5', '#D4537E', '#888780'],
+};
