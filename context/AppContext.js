@@ -46,9 +46,10 @@ export function AppProvider({ children }) {
   const [itineraries, setItineraries] = useState(DEFAULT_ITINERARIES);
   const [chatHistory, setChatHistory] = useState([]);
 
-  const updatePreference = useCallback((key, value) => {
-    setPreferences(prev => ({ ...prev, [key]: value }));
-  }, []);
+const updatePreference = useCallback((key, value) => {
+  console.log('updatePreference called:', key, value); // ← add this
+  setPreferences(prev => ({ ...prev, [key]: value }));
+}, []);
 
   const addToWishlist = useCallback((destination) => {
     const newItem = {

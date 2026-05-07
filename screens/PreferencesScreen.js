@@ -2,44 +2,38 @@ import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   ScrollView, TouchableOpacity, Switch
 } from 'react-native';
-import { useState } from 'react';
 import { colors } from '../theme/colors';
+import { useApp } from '../context/AppContext';
+
+function PrefRow({ icon, label, value, onPress }) {
+  return (
+    <TouchableOpacity style={styles.prefRow} onPress={onPress} activeOpacity={0.6}>
+      <Text style={styles.prefIcon}>{icon}</Text>
+      <Text style={styles.prefLabel}>{label}</Text>
+      <Text style={styles.prefValue}>{value}</Text>
+      <Text style={styles.prefArrow}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
+function ToggleRow({ icon, label, prefKey, preferences, updatePreference }) {
+  return (
+    <View style={styles.prefRow}>
+      <Text style={styles.prefIcon}>{icon}</Text>
+      <Text style={styles.prefLabel}>{label}</Text>
+      <Switch
+        value={preferences[prefKey]}
+        onValueChange={(val) => updatePreference(prefKey, val)}
+        trackColor={{ false: colors.border, true: colors.primary }}
+        thumbColor={colors.white}
+        ios_backgroundColor={colors.border}
+      />
+    </View>
+  );
+}
 
 export default function PreferencesScreen({ navigation }) {
-  const [directOnly, setDirectOnly] = useState(true);
-  const [baggage, setBaggage] = useState(false);
-  const [breakfast, setBreakfast] = useState(false);
-  const [instaSpots, setInstaSpots] = useState(true);
-  const [priceAlerts, setPriceAlerts] = useState(true);
-  const [bestTime, setBestTime] = useState(true);
-  const [inspiration, setInspiration] = useState(false);
-
-  function PrefRow({ icon, label, value, onPress }) {
-    return (
-      <TouchableOpacity style={styles.prefRow} onPress={onPress} activeOpacity={0.6}>
-        <Text style={styles.prefIcon}>{icon}</Text>
-        <Text style={styles.prefLabel}>{label}</Text>
-        <Text style={styles.prefValue}>{value}</Text>
-        <Text style={styles.prefArrow}>›</Text>
-      </TouchableOpacity>
-    );
-  }
-
-  function ToggleRow({ icon, label, value, onToggle }) {
-    return (
-      <View style={styles.prefRow}>
-        <Text style={styles.prefIcon}>{icon}</Text>
-        <Text style={styles.prefLabel}>{label}</Text>
-        <Switch
-          value={value}
-          onValueChange={onToggle}
-          trackColor={{ false: colors.border, true: colors.primary }}
-          thumbColor={colors.white}
-          ios_backgroundColor={colors.border}
-        />
-      </View>
-    );
-  }
+  const { preferences, updatePreference } = useApp();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -54,68 +48,78 @@ export default function PreferencesScreen({ navigation }) {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.avatarSection}>
           <View style={styles.avatarLarge}>
-            <Text style={styles.avatarText}>M</Text>
+            <Text style={styles.avatarText}>
+              {preferences.name ? preferences.name[0].toUpperCase() : 'M'}
+            </Text>
           </View>
           <View>
-            <Text style={styles.profileName}>Marc</Text>
-            <Text style={styles.profileEmail}>marc@example.com</Text>
+            <Text style={styles.profileName}>{preferences.name}</Text>
+            <Text style={styles.profileEmail}>{preferences.email}</Text>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>HOME BASE</Text>
           <View style={styles.card}>
-            <PrefRow icon="🏠" label="Home airport" value="ZRH" />
-            <PrefRow icon="💱" label="Currency" value="CHF" />
+            <PrefRow icon="🏠" label="Home airport" value={preferences.home_airports.join(', ')} />
+            <PrefRow icon="💱" label="Currency" value={preferences.currency} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>FLIGHTS</Text>
           <View style={styles.card}>
-            <PrefRow icon="💺" label="Cabin class" value="Economy" />
-            <ToggleRow icon="✈️" label="Direct flights only" value={directOnly} onToggle={setDirectOnly} />
-            <PrefRow icon="⏰" label="Preferred departure" value="Morning" />
-            <PrefRow icon="🛫" label="Preferred airlines" value="SWISS, Iberia" />
-            <ToggleRow icon="🧳" label="Always include baggage" value={baggage} onToggle={setBaggage} />
+            <PrefRow icon="💺" label="Cabin class" value={preferences.cabin_class} />
+            <ToggleRow icon="✈️" label="Direct flights only" prefKey="direct_flights_only"
+              preferences={preferences} updatePreference={updatePreference} />
+            <PrefRow icon="⏰" label="Preferred departure" value={preferences.preferred_departure} />
+            <PrefRow icon="🛫" label="Preferred airlines" value={preferences.preferred_airlines.join(', ')} />
+            <ToggleRow icon="🧳" label="Always include baggage" prefKey="always_include_baggage"
+              preferences={preferences} updatePreference={updatePreference} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>HOTELS</Text>
           <View style={styles.card}>
-            <PrefRow icon="⭐" label="Minimum stars" value="4 stars" />
-            <PrefRow icon="📍" label="Location priority" value="Central" />
-            <PrefRow icon="🛏️" label="Room type" value="King / Double" />
-            <ToggleRow icon="🍳" label="Breakfast included" value={breakfast} onToggle={setBreakfast} />
+            <PrefRow icon="⭐" label="Minimum stars" value={`${preferences.min_hotel_stars} stars`} />
+            <PrefRow icon="📍" label="Location priority" value={preferences.hotel_location_priority} />
+            <PrefRow icon="🛏️" label="Room type" value={preferences.room_type} />
+            <ToggleRow icon="🍳" label="Breakfast included" prefKey="breakfast_included"
+              preferences={preferences} updatePreference={updatePreference} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>TRAVEL STYLE</Text>
           <View style={styles.card}>
-            <PrefRow icon="🚶" label="Pace" value="Relaxed" />
-            <PrefRow icon="👤" label="Travelling as" value="Solo" />
-            <PrefRow icon="🍽️" label="Food interests" value="Local, Fine dining" />
-            <PrefRow icon="🏛️" label="Activity interests" value="Museums, Walks" />
-            <ToggleRow icon="📸" label="Instagrammable spots" value={instaSpots} onToggle={setInstaSpots} />
+            <PrefRow icon="🚶" label="Pace" value={preferences.pace} />
+            <PrefRow icon="👤" label="Travelling as" value={preferences.travelling_as} />
+            <PrefRow icon="🍽️" label="Food interests" value={preferences.food_interests.join(', ')} />
+            <PrefRow icon="🏛️" label="Activity interests" value={preferences.activity_interests.join(', ')} />
+            <ToggleRow icon="📸" label="Instagrammable spots" prefKey="instagrammable_spots"
+              preferences={preferences} updatePreference={updatePreference} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>BUDGET</Text>
           <View style={styles.card}>
-            <PrefRow icon="💰" label="Budget sensitivity" value="Balanced" />
-            <PrefRow icon="🔔" label="Price alert threshold" value="CHF 50 drop" />
+            <PrefRow icon="💰" label="Budget sensitivity" value={preferences.budget_sensitivity} />
+            <PrefRow icon="🔔" label="Price alert threshold"
+              value={`${preferences.currency} ${preferences.price_alert_threshold} drop`} />
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>NOTIFICATIONS</Text>
           <View style={styles.card}>
-            <ToggleRow icon="📉" label="Price drop alerts" value={priceAlerts} onToggle={setPriceAlerts} />
-            <ToggleRow icon="🌤️" label="Best time to go alerts" value={bestTime} onToggle={setBestTime} />
-            <ToggleRow icon="💡" label="Trip inspiration" value={inspiration} onToggle={setInspiration} />
+            <ToggleRow icon="📉" label="Price drop alerts" prefKey="price_drop_alerts"
+              preferences={preferences} updatePreference={updatePreference} />
+            <ToggleRow icon="🌤️" label="Best time to go alerts" prefKey="best_time_alerts"
+              preferences={preferences} updatePreference={updatePreference} />
+            <ToggleRow icon="💡" label="Trip inspiration" prefKey="trip_inspiration"
+              preferences={preferences} updatePreference={updatePreference} />
           </View>
         </View>
 
