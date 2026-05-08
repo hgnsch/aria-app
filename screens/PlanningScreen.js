@@ -6,7 +6,6 @@ import {
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
-import { fetchHotelPhotos } from '../lib/unsplash';
 
 const BACKEND = 'https://aria-travel-production.up.railway.app';
 
@@ -249,19 +248,9 @@ export default function PlanningScreen({ route, navigation }) {
         { id: ariaId, role: 'aria', text: reply, hotels },
       ]);
 
-      // Track shown hotels and enrich photos from Unsplash in the background
+      // Track shown hotels so NEW SEARCH excludes them
       if (hotels?.length > 0) {
         hotels.forEach(h => { if (h.hotel_id) shownHotelIdsRef.current.add(h.hotel_id); });
-        hotels.forEach((hotel, idx) => {
-          fetchHotelPhotos(hotel.name, hotel.city || '').then(photos => {
-            if (!photos.length) return;
-            setMessages(prev => prev.map(m =>
-              m.id === ariaId && m.hotels
-                ? { ...m, hotels: m.hotels.map((h, i) => i === idx ? { ...h, photos } : h) }
-                : m
-            ));
-          });
-        });
       }
     } catch {
       setMessages(prev => [
