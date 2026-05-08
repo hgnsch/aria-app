@@ -54,11 +54,8 @@ function HotelCard({ hotel, selected, onSelect }) {
   const photos = (hotel.photos || []).filter(Boolean);
 
   return (
-    <TouchableOpacity
-      onPress={onSelect}
-      activeOpacity={0.85}
-      style={[hs.card, selected && hs.cardSelected]}
-    >
+    <View style={[hs.card, selected && hs.cardSelected]}>
+      {/* Photo strip is NOT inside TouchableOpacity — allows free horizontal scroll */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -74,44 +71,47 @@ function HotelCard({ hotel, selected, onSelect }) {
         )}
       </ScrollView>
 
-      <View style={hs.info}>
-        <View style={hs.infoTop}>
-          <View style={[hs.radio, selected && hs.radioOn]}>
-            {selected && <View style={hs.radioDot} />}
+      {/* Info row is the tap target for selection */}
+      <TouchableOpacity onPress={onSelect} activeOpacity={0.85}>
+        <View style={hs.info}>
+          <View style={hs.infoTop}>
+            <View style={[hs.radio, selected && hs.radioOn]}>
+              {selected && <View style={hs.radioDot} />}
+            </View>
+            <Text style={hs.hotelName} numberOfLines={1}>{hotel.name}</Text>
+            <Text style={hs.stars}>{starsText}</Text>
           </View>
-          <Text style={hs.hotelName} numberOfLines={1}>{hotel.name}</Text>
-          <Text style={hs.stars}>{starsText}</Text>
-        </View>
 
-        <View style={hs.infoMeta}>
-          {hotel.rating != null && <Text style={hs.rating}>{hotel.rating}/10</Text>}
-          {hotel.review_count != null && <Text style={hs.reviews}>({hotel.review_count})</Text>}
+          <View style={hs.infoMeta}>
+            {hotel.rating != null && <Text style={hs.rating}>{hotel.rating}/10</Text>}
+            {hotel.review_count != null && <Text style={hs.reviews}>({hotel.review_count})</Text>}
+            {hotel.cheapest_rate && (
+              <Text style={hs.price}>
+                {hotel.cheapest_rate.currency} {hotel.cheapest_rate.per_night}/night
+              </Text>
+            )}
+          </View>
+
           {hotel.cheapest_rate && (
-            <Text style={hs.price}>
-              {hotel.cheapest_rate.currency} {hotel.cheapest_rate.per_night}/night
+            <Text style={hs.roomLine} numberOfLines={1}>
+              {[
+                hotel.cheapest_rate.room_name,
+                hotel.cheapest_rate.board,
+                hotel.cheapest_rate.refundable != null
+                  ? (hotel.cheapest_rate.refundable ? 'Refundable' : 'Non-refundable')
+                  : null,
+              ].filter(Boolean).join(' · ')}
+            </Text>
+          )}
+
+          {hotel.amenities?.length > 0 && (
+            <Text style={hs.amenities} numberOfLines={1}>
+              {hotel.amenities.slice(0, 5).join(' · ')}
             </Text>
           )}
         </View>
-
-        {hotel.cheapest_rate && (
-          <Text style={hs.roomLine} numberOfLines={1}>
-            {[
-              hotel.cheapest_rate.room_name,
-              hotel.cheapest_rate.board,
-              hotel.cheapest_rate.refundable != null
-                ? (hotel.cheapest_rate.refundable ? 'Refundable' : 'Non-refundable')
-                : null,
-            ].filter(Boolean).join(' · ')}
-          </Text>
-        )}
-
-        {hotel.amenities?.length > 0 && (
-          <Text style={hs.amenities} numberOfLines={1}>
-            {hotel.amenities.slice(0, 5).join(' · ')}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
