@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
+import { fetchHotelPhotos } from '../lib/unsplash';
 
 const BACKEND = 'https://aria-travel-production.up.railway.app';
 
@@ -179,6 +180,7 @@ export default function PlanningScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const scrollRef = useRef(null);
+  const shownHotelIdsRef = useRef(new Set());
 
   useEffect(() => {
     if (route?.params?.initialPrompt) {
@@ -207,7 +209,13 @@ export default function PlanningScreen({ route, navigation }) {
       const res = await fetch(BACKEND + '/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory, user_preferences: ariaPreferences }),
+        body: JSON.stringify({
+          messages: newHistory,
+          user_preferences: {
+            ...ariaPreferences,
+            excluded_hotel_ids: [...shownHotelIdsRef.current],
+          },
+        }),
       });
       const data = await res.json();
       const reply = data.reply || 'Something went wrong.';
@@ -234,10 +242,27 @@ export default function PlanningScreen({ route, navigation }) {
       }
 
       setHistory(prev => [...prev, { role: 'assistant', content: reply }]);
+
+      const ariaId = Date.now().toString();
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
-        { id: Date.now().toString(), role: 'aria', text: reply, hotels },
+        { id: ariaId, role: 'aria', text: reply, hotels },
       ]);
+
+      // Track shown hotels and enrich photos from Unsplash in the background
+      if (hotels?.length > 0) {
+        hotels.forEach(h => { if (h.hotel_id) shownHotelIdsRef.current.add(h.hotel_id); });
+        hotels.forEach((hotel, idx) => {
+          fetchHotelPhotos(hotel.name, hotel.city || '').then(photos => {
+            if (!photos.length) return;
+            setMessages(prev => prev.map(m =>
+              m.id === ariaId && m.hotels
+                ? { ...m, hotels: m.hotels.map((h, i) => i === idx ? { ...h, photos } : h) }
+                : m
+            ));
+          });
+        });
+      }
     } catch {
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
