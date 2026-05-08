@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TextInput, TouchableOpacity, ScrollView, Image,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  TextInput, TouchableOpacity, ScrollView, Image, KeyboardAvoidingView,
+  Platform, ActivityIndicator,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
-import { fetchHotelPhotos } from '../lib/unsplash';
 
 const BACKEND = 'https://aria-travel-production.up.railway.app';
 
@@ -55,21 +54,13 @@ function HotelCard({ hotel, selected, onSelect }) {
 
   return (
     <View style={[hs.card, selected && hs.cardSelected]}>
-      {/* Photo strip is NOT inside TouchableOpacity — allows free horizontal scroll */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={hs.photoStrip}
-        contentContainerStyle={{ gap: 2 }}
-      >
-        {photos.length > 0 ? photos.map((url, i) => (
-          <Image key={i} source={{ uri: url }} style={hs.photo} resizeMode="cover" />
-        )) : (
-          <View style={[hs.photo, hs.photoEmpty]}>
-            <Text style={hs.photoEmptyText}>No photo</Text>
-          </View>
-        )}
-      </ScrollView>
+      {photos[0] ? (
+        <Image source={{ uri: photos[0] }} style={hs.photo} resizeMode="cover" />
+      ) : (
+        <View style={[hs.photo, hs.photoEmpty]}>
+          <Text style={hs.photoEmptyText}>No photo</Text>
+        </View>
+      )}
 
       {/* Info row is the tap target for selection */}
       <TouchableOpacity onPress={onSelect} activeOpacity={0.85}>
@@ -249,21 +240,9 @@ export default function PlanningScreen({ route, navigation }) {
         { id: ariaId, role: 'aria', text: reply, hotels },
       ]);
 
-      // Track shown hotels; use Unsplash only as fallback for hotels with no LiteAPI photos
+      // Track shown hotels so NEW SEARCH excludes them
       if (hotels?.length > 0) {
         hotels.forEach(h => { if (h.hotel_id) shownHotelIdsRef.current.add(h.hotel_id); });
-        const capturedId = ariaId;
-        hotels.forEach((hotel, idx) => {
-          if ((hotel.photos || []).length > 0) return; // already has real photos
-          fetchHotelPhotos(hotel.name, hotel.city || '').then(photos => {
-            if (!photos.length) return;
-            setMessages(prev => prev.map(m =>
-              m.id === capturedId && m.hotels
-                ? { ...m, hotels: m.hotels.map((h, i) => i === idx ? { ...h, photos } : h) }
-                : m
-            ));
-          });
-        });
       }
     } catch {
       setMessages(prev => [
@@ -447,9 +426,8 @@ const hs = StyleSheet.create({
     overflow: 'hidden',
   },
   cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
-  photoStrip: { height: 90 },
-  photo: { width: 120, height: 90 },
-  photoEmpty: { backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' },
+  photo: { width: '100%', height: 120 },
+  photoEmpty: { width: '100%', height: 120, backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' },
   photoEmptyText: { fontSize: 10, color: colors.textDim },
   info: { padding: 10, gap: 4 },
   infoTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
