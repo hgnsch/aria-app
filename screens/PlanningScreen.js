@@ -255,14 +255,23 @@ export default function PlanningScreen({ route, navigation }) {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
   }
 
+  function newChat() {
+    setMessages([{ id: '0', role: 'aria', text: "Hey Marc! I'm Aria — your personal travel agent. Where are we heading?" }]);
+    setHistory([]);
+    setInput('');
+    setShowSuggestions(true);
+    setLoading(false);
+    shownHotelIdsRef.current = new Set();
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
 
       <View style={styles.header}>
-        <View style={styles.headerAvatar}>
+        <TouchableOpacity onPress={newChat} activeOpacity={0.7} style={styles.headerAvatar}>
           <Text style={styles.headerAvatarText}>✈️</Text>
-        </View>
+        </TouchableOpacity>
         <View>
           <Text style={styles.headerName}>Aria</Text>
           <Text style={styles.headerSub}>your personal travel agent</Text>
