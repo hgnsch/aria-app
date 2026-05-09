@@ -464,13 +464,14 @@ function restaurantIntro(text) {
   return (cut > 0 ? text.slice(0, cut) : text).trim();
 }
 
-function RestaurantCard({ restaurant }) {
+function RestaurantCard({ restaurant, onAddToTrip }) {
   const priceColor = { '$': colors.accent, '$$': colors.text, '$$$': colors.primary, '$$$$': colors.primary };
+  const [added, setAdded] = useState(false);
 
-  function openOpenTable() {
-    Linking.openURL(restaurant.opentable_url).catch(() => {
-      Linking.openURL(`https://www.opentable.com/s/?term=${encodeURIComponent(restaurant.name)}`);
-    });
+  function handleAdd() {
+    if (added) return;
+    setAdded(true);
+    onAddToTrip?.(restaurant);
   }
 
   return (
@@ -502,19 +503,24 @@ function RestaurantCard({ restaurant }) {
         {restaurant.why_it_fits ? (
           <Text style={rsc.whyItFits} numberOfLines={2}>{restaurant.why_it_fits}</Text>
         ) : null}
-        <TouchableOpacity style={rsc.bookBtn} onPress={openOpenTable} activeOpacity={0.8}>
-          <Text style={rsc.bookBtnText}>RESERVE ON OPENTABLE</Text>
+        <TouchableOpacity
+          style={[rsc.addBtn, added && rsc.addBtnDone]}
+          onPress={handleAdd}
+          disabled={added}
+          activeOpacity={0.8}
+        >
+          <Text style={rsc.addBtnText}>{added ? 'ADDED TO TRIP' : 'ADD TO TRIP'}</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
 
-function RestaurantResults({ restaurants }) {
+function RestaurantResults({ restaurants, onAddToTrip }) {
   return (
     <View style={rsc.block}>
       {restaurants.map((r, i) => (
-        <RestaurantCard key={r.id || i} restaurant={r} />
+        <RestaurantCard key={r.id || i} restaurant={r} onAddToTrip={onAddToTrip} />
       ))}
     </View>
   );
@@ -537,13 +543,12 @@ const rsc = StyleSheet.create({
   cuisine: { fontSize: 11, color: colors.textMuted, flex: 1 },
   address: { fontSize: 11, color: colors.textDim },
   whyItFits: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
-  bookBtn: {
-    marginTop: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 8, paddingVertical: 10,
-    alignItems: 'center',
+  addBtn: {
+    marginTop: 6, backgroundColor: colors.primary,
+    borderRadius: 8, paddingVertical: 10, alignItems: 'center',
   },
-  bookBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+  addBtnDone: { backgroundColor: colors.primaryLight },
+  addBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
 });
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -573,7 +578,8 @@ export default function PlanningScreen({ route, navigation }) {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const scrollRef = useRef(null);
   const shownHotelIdsRef = useRef(new Set());
-  const activeDestRef = useRef(null); // city currently being planned
+  const activeDestRef = useRef(null);
+  const pendingRestaurantRef = useRef(null);
 
   useEffect(() => {
     if (route?.params?.initialPrompt) {
@@ -649,6 +655,29 @@ export default function PlanningScreen({ route, navigation }) {
       const norm = s => (s || '').toLowerCase().trim();
       if (data.tool_calls?.length > 0) {
         data.tool_calls.forEach(tool => {
+          if (tool.name === 'save_restaurant_to_itinerary' && tool.result?.success) {
+            const { destination, day_index, time, end_time, restaurant_name, meal_type, notes } = tool.result;
+            const restaurant = pendingRestaurantRef.current;
+            const cityName = (destination || '').split(',')[0].trim();
+            const itin = itineraries.find(i => norm(i.city) === norm(cityName));
+            if (itin && itin.days?.[day_index]) {
+              const mealLabel = meal_type ? meal_type.charAt(0).toUpperCase() + meal_type.slice(1) : 'Dinner';
+              const newSlot = {
+                time,
+                end_time,
+                activity: `${mealLabel} at ${restaurant_name}`,
+                location: restaurant?.address || '',
+                notes: notes || '',
+                slot_type: 'restaurant',
+                photo_url: restaurant?.photos?.[0] || null,
+                opentable_url: restaurant?.opentable_url || null,
+              };
+              const updatedSlots = [...(itin.days[day_index].slots || []), newSlot]
+                .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+              updateItineraryDay(itin.id, day_index, updatedSlots);
+              pendingRestaurantRef.current = null;
+            }
+          }
           if (tool.name === 'wishlist_update') {
             const city = tool.input.destination;
             if (tool.input.action === 'add') {
@@ -800,7 +829,14 @@ export default function PlanningScreen({ route, navigation }) {
                   )}
                   {msg.restaurants?.length > 0 && (
                     <View style={styles.hotelWrap}>
-                      <RestaurantResults restaurants={msg.restaurants} />
+                      <RestaurantResults
+                        restaurants={msg.restaurants}
+                        onAddToTrip={(restaurant) => {
+                          pendingRestaurantRef.current = restaurant;
+                          const city = activeDestRef.current || '';
+                          send(`I'd like to add ${restaurant.name} to my ${city} trip.`);
+                        }}
+                      />
                     </View>
                   )}
                   {msg.hotels?.length > 0 && (

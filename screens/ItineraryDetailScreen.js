@@ -1,0 +1,198 @@
+import {
+  View, Text, StyleSheet, SafeAreaView, StatusBar,
+  ScrollView, TouchableOpacity, Image, Linking,
+} from 'react-native';
+import { colors } from '../theme/colors';
+
+export default function ItineraryDetailScreen({ route, navigation }) {
+  const { day, dayIndex, destination, country, accentColor = colors.primary, itineraryId } = route.params;
+
+  const slots = day?.slots || [];
+  const accent = accentColor || colors.primary;
+
+  return (
+    <SafeAreaView style={s.safe}>
+      <StatusBar barStyle="light-content" />
+
+      <View style={[s.header, { borderBottomColor: accent + '44' }]}>
+        <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()}>
+          <Text style={s.backText}>‹ Back</Text>
+        </TouchableOpacity>
+        <View style={s.headerCenter}>
+          <Text style={s.headerCity}>{destination}</Text>
+          <Text style={s.headerDay}>{day?.date_label || `Day ${(dayIndex ?? 0) + 1}`}</Text>
+        </View>
+        <View style={{ width: 60 }} />
+      </View>
+
+      {day?.summary ? (
+        <View style={[s.summaryBar, { backgroundColor: accent + '18' }]}>
+          <View style={[s.summaryDot, { backgroundColor: accent }]} />
+          <Text style={[s.summaryText, { color: accent }]}>{day.summary}</Text>
+        </View>
+      ) : null}
+
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {slots.length === 0 ? (
+          <Text style={s.emptyText}>No activities planned for this day.</Text>
+        ) : (
+          slots.map((slot, i) => {
+            const isRestaurant = slot.slot_type === 'restaurant';
+            return (
+              <View key={i}>
+                {i > 0 && <View style={s.divider} />}
+                {isRestaurant && slot.photo_url ? (
+                  <View style={s.restaurantPhotoWrap}>
+                    <Image
+                      source={{ uri: slot.photo_url }}
+                      style={s.restaurantPhoto}
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : null}
+                <View style={s.slotRow}>
+                  <View style={s.timeCol}>
+                    <Text style={[s.timeStart, { color: accent }]}>{slot.time}</Text>
+                    {slot.end_time ? <Text style={s.timeEnd}>{slot.end_time}</Text> : null}
+                  </View>
+                  <View style={[s.timeLine, { backgroundColor: accent + '55' }]} />
+                  <View style={s.actCol}>
+                    <Text style={s.actName}>{slot.activity}</Text>
+                    {slot.location ? <Text style={s.actLocation}>{slot.location}</Text> : null}
+                    {slot.notes ? <Text style={s.actNotes}>{slot.notes}</Text> : null}
+                    {isRestaurant && slot.opentable_url ? (
+                      <TouchableOpacity
+                        style={s.reserveBtn}
+                        onPress={() => Linking.openURL(slot.opentable_url)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={s.reserveBtnText}>RESERVE ON OPENTABLE</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      <View style={s.footer}>
+        <TouchableOpacity
+          style={[s.ariaBtn, { borderColor: accent }]}
+          onPress={() => navigation.navigate('Main', {
+            screen: 'Planning',
+            params: {
+              initialPrompt: `I'd like to adjust ${day?.date_label || 'a day'} of my ${destination} itinerary.`,
+            },
+          })}
+        >
+          <Text style={[s.ariaBtnText, { color: accent }]}>ADJUST WITH ARIA ✈</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    backgroundColor: colors.surface,
+  },
+  backBtn: { paddingVertical: 4, paddingRight: 12, width: 60 },
+  backText: { fontSize: 16, color: colors.text },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerCity: { fontSize: 16, fontWeight: '600', color: colors.text },
+  headerDay: { fontSize: 11, color: colors.textMuted, marginTop: 1, letterSpacing: 0.3 },
+
+  summaryBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 20, paddingVertical: 10,
+  },
+  summaryDot: { width: 6, height: 6, borderRadius: 3 },
+  summaryText: { fontSize: 13, fontWeight: '500' },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingTop: 8, paddingHorizontal: 20 },
+
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: 72,
+  },
+
+  slotRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 16,
+    gap: 0,
+  },
+
+  timeCol: {
+    width: 52,
+    alignItems: 'flex-start',
+    paddingTop: 2,
+  },
+  timeStart: {
+    fontSize: 13,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
+  timeEnd: {
+    fontSize: 11,
+    color: colors.textDim,
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+
+  timeLine: {
+    width: 1.5,
+    alignSelf: 'stretch',
+    marginHorizontal: 10,
+    borderRadius: 1,
+    minHeight: 20,
+  },
+
+  actCol: { flex: 1, gap: 3 },
+  actName: { fontSize: 15, fontWeight: '500', color: colors.text, lineHeight: 20 },
+  actLocation: { fontSize: 12, color: colors.textMuted },
+  actNotes: { fontSize: 12, color: colors.textDim, fontStyle: 'italic', marginTop: 2 },
+
+  restaurantPhotoWrap: {
+    marginHorizontal: -20,
+    marginTop: 8,
+  },
+  restaurantPhoto: {
+    width: '100%', height: 140,
+  },
+
+  reserveBtn: {
+    marginTop: 8,
+    backgroundColor: colors.primary,
+    borderRadius: 8, paddingVertical: 9, alignItems: 'center',
+  },
+  reserveBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+
+  emptyText: { textAlign: 'center', color: colors.textDim, fontSize: 14, marginTop: 40 },
+
+  footer: {
+    padding: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  ariaBtn: {
+    borderWidth: 1, borderRadius: 10,
+    paddingVertical: 12, alignItems: 'center',
+  },
+  ariaBtnText: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2 },
+});
