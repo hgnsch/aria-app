@@ -861,6 +861,7 @@ export default function PlanningScreen({ route, navigation }) {
                                 room_name: hotel.cheapest_rate?.room_name,
                                 board: hotel.cheapest_rate?.board,
                                 photo_url: hotel.photos?.[0] || null,
+                                photos: hotel.photos?.slice(0, 6) || [],
                               },
                             });
                             setTimeout(() => send(`Hotel added to my ${existing.city} trip.`), 300);
