@@ -685,6 +685,8 @@ export default function PlanningScreen({ route, navigation }) {
                 notes: notes || '',
                 slot_type: 'restaurant',
                 photo_url: restaurant?.photos?.[0] || null,
+                photos: restaurant?.photos?.slice(0, 6) || [],
+                description: restaurant?.description || null,
                 opentable_url: restaurant?.opentable_url || null,
                 rating: restaurant?.rating ?? null,
                 review_count: restaurant?.review_count ?? null,

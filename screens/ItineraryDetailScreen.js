@@ -1,8 +1,44 @@
+import { useState } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  ScrollView, TouchableOpacity, Image, Linking,
+  ScrollView, FlatList, TouchableOpacity, Image, Linking,
+  useWindowDimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
+
+function PhotoCarousel({ photos }) {
+  const { width } = useWindowDimensions();
+  const [activeIdx, setActiveIdx] = useState(0);
+  const height = 160;
+
+  if (!photos?.length) return null;
+
+  return (
+    <View style={{ marginHorizontal: -20, marginTop: 8 }}>
+      <FlatList
+        data={photos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={({ item: uri }) => (
+          <Image source={{ uri }} style={{ width, height }} resizeMode="cover" />
+        )}
+        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+        onScroll={e => setActiveIdx(Math.round(e.nativeEvent.contentOffset.x / width))}
+        scrollEventThrottle={16}
+        style={{ width, height }}
+      />
+      {photos.length > 1 && (
+        <View style={s.dots}>
+          {photos.map((_, i) => (
+            <View key={i} style={[s.dot, i === activeIdx && s.dotActive]} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ItineraryDetailScreen({ route, navigation }) {
   const { day, dayIndex, destination, country, accentColor = colors.primary, itineraryId } = route.params;
@@ -42,18 +78,15 @@ export default function ItineraryDetailScreen({ route, navigation }) {
         ) : (
           slots.map((slot, i) => {
             const isRestaurant = slot.slot_type === 'restaurant';
+            const photos = slot.photos?.length > 0 ? slot.photos : (slot.photo_url ? [slot.photo_url] : []);
             return (
               <View key={i}>
                 {i > 0 && <View style={s.divider} />}
-                {isRestaurant && slot.photo_url ? (
-                  <View style={s.restaurantPhotoWrap}>
-                    <Image
-                      source={{ uri: slot.photo_url }}
-                      style={s.restaurantPhoto}
-                      resizeMode="cover"
-                    />
-                  </View>
+
+                {isRestaurant && photos.length > 0 ? (
+                  <PhotoCarousel photos={photos} />
                 ) : null}
+
                 <View style={s.slotRow}>
                   <View style={s.timeCol}>
                     <Text style={[s.timeStart, { color: accent }]}>{slot.time}</Text>
@@ -78,6 +111,10 @@ export default function ItineraryDetailScreen({ route, navigation }) {
 
                     {isRestaurant && slot.cuisine ? (
                       <Text style={s.restaurantCuisine}>{slot.cuisine}</Text>
+                    ) : null}
+
+                    {isRestaurant && slot.description ? (
+                      <Text style={s.restaurantDescription}>{slot.description}</Text>
                     ) : null}
 
                     {!isRestaurant && slot.location ? (
@@ -113,6 +150,7 @@ export default function ItineraryDetailScreen({ route, navigation }) {
             screen: 'Planning',
             params: {
               initialPrompt: `I'd like to adjust ${day?.date_label || 'a day'} of my ${destination} itinerary.`,
+              planCity: destination,
             },
           })}
         >
@@ -191,13 +229,9 @@ const s = StyleSheet.create({
   actLocation: { fontSize: 12, color: colors.textMuted },
   actNotes: { fontSize: 12, color: colors.textDim, fontStyle: 'italic', marginTop: 2 },
 
-  restaurantPhotoWrap: {
-    marginHorizontal: -20,
-    marginTop: 8,
-  },
-  restaurantPhoto: {
-    width: '100%', height: 140,
-  },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 20, gap: 5 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.border },
+  dotActive: { backgroundColor: colors.primary, width: 14, borderRadius: 3 },
 
   restaurantMetaRow: {
     flexDirection: 'row',
@@ -218,6 +252,12 @@ const s = StyleSheet.create({
     fontSize: 12,
     color: colors.textDim,
     fontStyle: 'italic',
+  },
+  restaurantDescription: {
+    fontSize: 12,
+    color: colors.textDim,
+    lineHeight: 18,
+    marginTop: 2,
   },
 
   reserveBtn: {
