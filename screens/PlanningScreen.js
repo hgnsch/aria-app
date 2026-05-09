@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   TextInput, TouchableOpacity, ScrollView, Image, KeyboardAvoidingView,
-  Platform, ActivityIndicator,
+  Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
@@ -400,6 +400,113 @@ function HotelResults({ hotels, searchParams, onRefresh, onAddToTrip }) {
   );
 }
 
+// ─── Restaurant cards ─────────────────────────────────────────────────────────
+
+function extractRestaurantWhyItFits(replyText, restaurants) {
+  if (!replyText || !restaurants?.length) return restaurants;
+  const matches = [...replyText.matchAll(/Why it fits you:\s*([^\n]+)/gi)];
+  if (!matches.length) return restaurants;
+  return restaurants.map((r, i) =>
+    matches[i] ? { ...r, why_it_fits: matches[i][1].trim() } : r
+  );
+}
+
+function restaurantIntro(text) {
+  const cut = text.search(/Why it fits you:/i);
+  return (cut > 0 ? text.slice(0, cut) : text).trim();
+}
+
+function RestaurantCard({ restaurant }) {
+  const priceColor = { '$': colors.accent, '$$': colors.text, '$$$': colors.primary, '$$$$': colors.primary };
+
+  function openOpenTable() {
+    Linking.openURL(restaurant.opentable_url).catch(() => {
+      Linking.openURL(`https://www.opentable.com/s/?term=${encodeURIComponent(restaurant.name)}`);
+    });
+  }
+
+  return (
+    <View style={rsc.card}>
+      {restaurant.photo_url ? (
+        <Image source={{ uri: restaurant.photo_url }} style={rsc.photo} resizeMode="cover" />
+      ) : (
+        <View style={[rsc.photo, rsc.photoEmpty]}>
+          <Text style={rsc.photoEmptyText}>No photo</Text>
+        </View>
+      )}
+      <View style={rsc.info}>
+        <View style={rsc.nameRow}>
+          <Text style={rsc.name} numberOfLines={1}>{restaurant.name}</Text>
+          {restaurant.price && (
+            <Text style={[rsc.price, { color: priceColor[restaurant.price] || colors.text }]}>
+              {restaurant.price}
+            </Text>
+          )}
+        </View>
+        <View style={rsc.metaRow}>
+          {restaurant.rating != null && (
+            <Text style={rsc.rating}>★ {restaurant.rating}</Text>
+          )}
+          {restaurant.review_count != null && (
+            <Text style={rsc.reviews}>({restaurant.review_count})</Text>
+          )}
+          {restaurant.cuisine ? (
+            <Text style={rsc.cuisine} numberOfLines={1}>{restaurant.cuisine}</Text>
+          ) : null}
+        </View>
+        {restaurant.address ? (
+          <Text style={rsc.address} numberOfLines={1}>{restaurant.address}</Text>
+        ) : null}
+        {restaurant.why_it_fits ? (
+          <Text style={rsc.whyItFits} numberOfLines={2}>{restaurant.why_it_fits}</Text>
+        ) : null}
+        <TouchableOpacity style={rsc.bookBtn} onPress={openOpenTable} activeOpacity={0.8}>
+          <Text style={rsc.bookBtnText}>RESERVE ON OPENTABLE</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function RestaurantResults({ restaurants }) {
+  return (
+    <View style={rsc.block}>
+      {restaurants.map((r, i) => (
+        <RestaurantCard key={r.id || i} restaurant={r} />
+      ))}
+    </View>
+  );
+}
+
+const rsc = StyleSheet.create({
+  block: { gap: 10 },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12, borderWidth: 0.5, borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  photo: { width: '100%', height: 130 },
+  photoEmpty: { backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' },
+  photoEmptyText: { fontSize: 10, color: colors.textDim },
+  info: { padding: 10, gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
+  price: { fontSize: 13, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  rating: { fontSize: 12, fontWeight: '600', color: colors.accent },
+  reviews: { fontSize: 11, color: colors.textDim },
+  cuisine: { fontSize: 11, color: colors.textMuted, flex: 1 },
+  address: { fontSize: 11, color: colors.textDim },
+  whyItFits: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
+  bookBtn: {
+    marginTop: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 8, paddingVertical: 10,
+    alignItems: 'center',
+  },
+  bookBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+});
+
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
 const SUGGESTIONS = [
@@ -478,7 +585,12 @@ export default function PlanningScreen({ route, navigation }) {
       const flight_time_options = data.flight_time_options?.options?.length > 0 ? data.flight_time_options : null;
       const date_suggestions = data.date_suggestions?.options?.length > 0 ? data.date_suggestions : null;
 
-      const hasStructuredContent = !!(flight_time_options || flight_options || date_suggestions || hotels);
+      const rawRestaurants = data.restaurant_results?.restaurants?.length > 0
+        ? data.restaurant_results.restaurants : null;
+      const restaurants = rawRestaurants
+        ? extractRestaurantWhyItFits(data.reply, rawRestaurants) : null;
+
+      const hasStructuredContent = !!(flight_time_options || flight_options || date_suggestions || hotels || restaurants);
       const reply = data.reply || (hasStructuredContent ? '' : 'Something went wrong.');
 
       // Handle itinerary results
@@ -530,7 +642,7 @@ export default function PlanningScreen({ route, navigation }) {
       const ariaId = Date.now().toString();
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
-        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, flight_options, flight_time_options, date_suggestions },
+        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, restaurants, flight_options, flight_time_options, date_suggestions },
       ]);
 
       if (hotels?.length > 0) {
@@ -594,7 +706,9 @@ export default function PlanningScreen({ route, navigation }) {
             }
 
             if (msg.role === 'aria') {
-              const displayText = msg.hotels ? hotelIntro(msg.text) : msg.text;
+              const displayText = msg.restaurants
+                ? restaurantIntro(msg.text)
+                : msg.hotels ? hotelIntro(msg.text) : msg.text;
               return (
                 <View key={msg.id} style={styles.ariaGroup}>
                   <View style={styles.ariaRow}>
@@ -643,6 +757,11 @@ export default function PlanningScreen({ route, navigation }) {
                           }
                         }}
                       />
+                    </View>
+                  )}
+                  {msg.restaurants?.length > 0 && (
+                    <View style={styles.hotelWrap}>
+                      <RestaurantResults restaurants={msg.restaurants} />
                     </View>
                   )}
                   {msg.hotels?.length > 0 && (
