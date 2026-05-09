@@ -671,6 +671,10 @@ export default function PlanningScreen({ route, navigation }) {
                 slot_type: 'restaurant',
                 photo_url: restaurant?.photos?.[0] || null,
                 opentable_url: restaurant?.opentable_url || null,
+                rating: restaurant?.rating ?? null,
+                review_count: restaurant?.review_count ?? null,
+                price: restaurant?.price || null,
+                cuisine: restaurant?.cuisine || null,
               };
               const updatedSlots = [...(itin.days[day_index].slots || []), newSlot]
                 .sort((a, b) => (a.time || '').localeCompare(b.time || ''));

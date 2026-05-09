@@ -62,8 +62,32 @@ export default function ItineraryDetailScreen({ route, navigation }) {
                   <View style={[s.timeLine, { backgroundColor: accent + '55' }]} />
                   <View style={s.actCol}>
                     <Text style={s.actName}>{slot.activity}</Text>
-                    {slot.location ? <Text style={s.actLocation}>{slot.location}</Text> : null}
-                    {slot.notes ? <Text style={s.actNotes}>{slot.notes}</Text> : null}
+
+                    {isRestaurant && (slot.rating != null || slot.price) ? (
+                      <View style={s.restaurantMetaRow}>
+                        {slot.rating != null ? (
+                          <Text style={s.restaurantRating}>
+                            ★ {slot.rating}{slot.review_count ? ` (${slot.review_count})` : ''}
+                          </Text>
+                        ) : null}
+                        {slot.price ? (
+                          <Text style={s.restaurantPrice}>{slot.price}</Text>
+                        ) : null}
+                      </View>
+                    ) : null}
+
+                    {isRestaurant && slot.cuisine ? (
+                      <Text style={s.restaurantCuisine}>{slot.cuisine}</Text>
+                    ) : null}
+
+                    {!isRestaurant && slot.location ? (
+                      <Text style={s.actLocation}>{slot.location}</Text>
+                    ) : null}
+
+                    {slot.notes ? (
+                      <Text style={s.actNotes}>{slot.notes}</Text>
+                    ) : null}
+
                     {isRestaurant && slot.opentable_url ? (
                       <TouchableOpacity
                         style={s.reserveBtn}
@@ -173,6 +197,27 @@ const s = StyleSheet.create({
   },
   restaurantPhoto: {
     width: '100%', height: 140,
+  },
+
+  restaurantMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  restaurantRating: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '500',
+  },
+  restaurantPrice: {
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  restaurantCuisine: {
+    fontSize: 12,
+    color: colors.textDim,
+    fontStyle: 'italic',
   },
 
   reserveBtn: {
