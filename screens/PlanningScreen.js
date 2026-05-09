@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
-  TextInput, TouchableOpacity, ScrollView, Image, KeyboardAvoidingView,
+  TextInput, TouchableOpacity, ScrollView, FlatList, Image, KeyboardAvoidingView,
   Platform, ActivityIndicator, Linking,
 } from 'react-native';
 import { colors } from '../theme/colors';
@@ -62,6 +62,60 @@ function hotelIntro(text) {
   const intro = (cut > 0 ? text.slice(0, cut) : text).trim();
   return intro;
 }
+
+// ─── Photo carousel ───────────────────────────────────────────────────────────
+
+function PhotoCarousel({ photos, height = 130 }) {
+  const [slideWidth, setSlideWidth] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const hasPhotos = photos?.length > 0;
+  const multi = (photos?.length || 0) > 1;
+
+  return (
+    <View
+      style={{ height: height + (multi ? 20 : 0) }}
+      onLayout={e => setSlideWidth(e.nativeEvent.layout.width)}
+    >
+      <View style={{ height, overflow: 'hidden' }}>
+        {!hasPhotos && (
+          <View style={{ flex: 1, backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 10, color: colors.textDim }}>No photo</Text>
+          </View>
+        )}
+        {hasPhotos && slideWidth > 0 && (
+          <FlatList
+            data={photos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, i) => String(i)}
+            renderItem={({ item }) => (
+              <Image source={{ uri: item }} style={{ width: slideWidth, height }} resizeMode="cover" />
+            )}
+            getItemLayout={(_, i) => ({ length: slideWidth, offset: slideWidth * i, index: i })}
+            onMomentumScrollEnd={e => {
+              if (slideWidth > 0) setActiveIdx(Math.round(e.nativeEvent.contentOffset.x / slideWidth));
+            }}
+            style={{ width: slideWidth, height }}
+          />
+        )}
+      </View>
+      {multi && slideWidth > 0 && (
+        <View style={ph.dots}>
+          {photos.map((_, i) => (
+            <View key={i} style={[ph.dot, i === activeIdx && ph.dotActive]} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const ph = StyleSheet.create({
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 20, gap: 5 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.border },
+  dotActive: { backgroundColor: colors.primary, width: 14, borderRadius: 3 },
+});
 
 // ─── Date chips ───────────────────────────────────────────────────────────────
 
@@ -292,13 +346,7 @@ function HotelCard({ hotel, selected, onSelect }) {
 
   return (
     <View style={[hs.card, selected && hs.cardSelected]}>
-      {photos[0] ? (
-        <Image source={{ uri: photos[0] }} style={hs.photo} resizeMode="cover" />
-      ) : (
-        <View style={[hs.photo, hs.photoEmpty]}>
-          <Text style={hs.photoEmptyText}>No photo</Text>
-        </View>
-      )}
+      <PhotoCarousel photos={photos} height={120} />
 
       {/* Info row is the tap target for selection */}
       <TouchableOpacity onPress={onSelect} activeOpacity={0.85}>
@@ -427,13 +475,7 @@ function RestaurantCard({ restaurant }) {
 
   return (
     <View style={rsc.card}>
-      {restaurant.photo_url ? (
-        <Image source={{ uri: restaurant.photo_url }} style={rsc.photo} resizeMode="cover" />
-      ) : (
-        <View style={[rsc.photo, rsc.photoEmpty]}>
-          <Text style={rsc.photoEmptyText}>No photo</Text>
-        </View>
-      )}
+      <PhotoCarousel photos={restaurant.photos || []} height={130} />
       <View style={rsc.info}>
         <View style={rsc.nameRow}>
           <Text style={rsc.name} numberOfLines={1}>{restaurant.name}</Text>
@@ -485,9 +527,6 @@ const rsc = StyleSheet.create({
     borderRadius: 12, borderWidth: 0.5, borderColor: colors.border,
     overflow: 'hidden',
   },
-  photo: { width: '100%', height: 130 },
-  photoEmpty: { backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' },
-  photoEmptyText: { fontSize: 10, color: colors.textDim },
   info: { padding: 10, gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
@@ -898,9 +937,6 @@ const hs = StyleSheet.create({
     overflow: 'hidden',
   },
   cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
-  photo: { width: '100%', height: 120 },
-  photoEmpty: { width: '100%', height: 120, backgroundColor: colors.surfaceDeep, alignItems: 'center', justifyContent: 'center' },
-  photoEmptyText: { fontSize: 10, color: colors.textDim },
   info: { padding: 10, gap: 4 },
   infoTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   radio: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
