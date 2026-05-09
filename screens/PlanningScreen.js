@@ -45,6 +45,244 @@ function MarkdownText({ text }) {
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function extractWhyItFits(replyText, hotels) {
+  if (!replyText || !hotels?.length) return hotels;
+  const matches = [...replyText.matchAll(/Why it fits you:\s*([^\n]+)/gi)];
+  if (!matches.length) return hotels;
+  return hotels.map((hotel, i) =>
+    matches[i] ? { ...hotel, why_it_fits: matches[i][1].trim() } : hotel
+  );
+}
+
+function hotelIntro(text) {
+  // Keep only the intro line(s) before the first "Why it fits you:" line
+  const cut = text.search(/Why it fits you:/i);
+  const intro = (cut > 0 ? text.slice(0, cut) : text).trim();
+  return intro;
+}
+
+// ─── Date chips ───────────────────────────────────────────────────────────────
+
+function DateChips({ suggestions, onSelect }) {
+  const [chosen, setChosen] = useState(null);
+
+  function handlePick(option) {
+    if (chosen) return;
+    setChosen(option.label);
+    onSelect(option);
+  }
+
+  return (
+    <View style={dc.wrap}>
+      {suggestions.options.map((opt, i) => (
+        <TouchableOpacity
+          key={i}
+          style={[dc.chip, chosen === opt.label && dc.chipSel]}
+          onPress={() => handlePick(opt)}
+          disabled={!!chosen}
+          activeOpacity={0.75}
+        >
+          <Text style={[dc.label, chosen === opt.label && dc.labelSel]}>{opt.label}</Text>
+          {opt.note ? <Text style={dc.note}>{opt.note}</Text> : null}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+const dc = StyleSheet.create({
+  wrap: { gap: 6, marginTop: 2 },
+  chip: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: colors.surface,
+  },
+  chipSel: { borderColor: colors.primary, backgroundColor: colors.primary + '18' },
+  label: { fontSize: 13, color: colors.text, fontWeight: '500' },
+  labelSel: { color: colors.primary },
+  note: { fontSize: 11, color: colors.textMuted, marginTop: 2 },
+});
+
+// ─── Flight time chips ────────────────────────────────────────────────────────
+
+function FlightTimeChips({ options, onSelect }) {
+  const [chosen, setChosen] = useState(null);
+
+  const ICONS = { morning: '🌅', daytime: '☀️', evening: '🌆' };
+
+  function handlePick(opt) {
+    if (chosen) return;
+    setChosen(opt.value);
+    onSelect(opt);
+  }
+
+  return (
+    <View style={ftc.wrap}>
+      {options.map((opt, i) => (
+        <TouchableOpacity
+          key={i}
+          style={[ftc.chip, chosen === opt.value && ftc.chipSel]}
+          onPress={() => handlePick(opt)}
+          disabled={!!chosen}
+          activeOpacity={0.75}
+        >
+          <View style={ftc.row}>
+            <Text style={ftc.icon}>{ICONS[opt.value] || '✈️'}</Text>
+            <View>
+              <Text style={[ftc.label, chosen === opt.value && ftc.labelSel]}>{opt.label}</Text>
+              {opt.note ? <Text style={ftc.note}>{opt.note}</Text> : null}
+            </View>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+const ftc = StyleSheet.create({
+  wrap: { gap: 6, marginTop: 2 },
+  chip: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: colors.surface,
+  },
+  chipSel: { borderColor: colors.primary, backgroundColor: colors.primary + '18' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  icon: { fontSize: 18 },
+  label: { fontSize: 13, color: colors.text, fontWeight: '500' },
+  labelSel: { color: colors.primary },
+  note: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
+});
+
+// ─── Flight cards ─────────────────────────────────────────────────────────────
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDur(mins) {
+  if (!mins) return '';
+  return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? ` ${mins % 60}m` : ''}`;
+}
+
+function FlightCard({ flight, selected, onSelect }) {
+  return (
+    <TouchableOpacity
+      style={[fs.card, selected && fs.cardSel]}
+      onPress={onSelect}
+      activeOpacity={0.85}
+    >
+      <View style={fs.topRow}>
+        <View style={[fs.radio, selected && fs.radioOn]}>
+          {selected && <View style={fs.radioDot} />}
+        </View>
+        <Text style={fs.airline} numberOfLines={1}>{flight.airline}</Text>
+        <Text style={fs.flightNum}>{flight.flight_number}</Text>
+        {flight.stops === 0
+          ? <View style={fs.directBadge}><Text style={fs.directText}>Direct</Text></View>
+          : <Text style={fs.stops}>{flight.stops} stop</Text>
+        }
+      </View>
+
+      <View style={fs.legRow}>
+        <View style={fs.endpoint}>
+          <Text style={fs.iata}>{flight.origin}</Text>
+          <Text style={fs.time}>{fmtTime(flight.departure)}</Text>
+        </View>
+        <View style={fs.middle}>
+          <Text style={fs.dur}>{fmtDur(flight.duration_minutes)}</Text>
+          <View style={fs.line} />
+        </View>
+        <View style={[fs.endpoint, { alignItems: 'flex-end' }]}>
+          <Text style={fs.iata}>{flight.destination}</Text>
+          <Text style={fs.time}>{fmtTime(flight.arrival)}</Text>
+        </View>
+      </View>
+
+      <View style={fs.priceRow}>
+        <Text style={fs.price}>
+          {flight.currency} {flight.price_per_person}
+          <Text style={fs.priceSub}>/person</Text>
+        </Text>
+        <Text style={fs.meta}>
+          {[
+            flight.cabin_class,
+            flight.baggage_included ? 'Baggage incl.' : 'Carry-on only',
+            flight.refundable ? 'Refundable' : null,
+          ].filter(Boolean).join(' · ')}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function FlightResults({ options, onSave }) {
+  const [selectedIdx, setSelectedIdx] = useState(null);
+  const [saved, setSaved] = useState(false);
+
+  function handleSave() {
+    if (selectedIdx === null || saved) return;
+    onSave(options.results[selectedIdx]);
+    setSaved(true);
+  }
+
+  return (
+    <View style={fs.block}>
+      {options.results.map((flight, i) => (
+        <FlightCard
+          key={i}
+          flight={flight}
+          selected={selectedIdx === i}
+          onSelect={() => { setSelectedIdx(prev => prev === i ? null : i); setSaved(false); }}
+        />
+      ))}
+      <TouchableOpacity
+        style={[fs.saveBtn, (selectedIdx === null || saved) && fs.saveBtnOff]}
+        onPress={handleSave}
+        disabled={selectedIdx === null || saved}
+        activeOpacity={0.8}
+      >
+        <Text style={fs.saveBtnText}>{saved ? 'FLIGHT SAVED TO TRIP' : 'SAVE TO TRIP'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const fs = StyleSheet.create({
+  block: { gap: 8 },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12, borderWidth: 0.5, borderColor: colors.border,
+    padding: 12, gap: 10,
+  },
+  cardSel: { borderColor: colors.primary, borderWidth: 1.5 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  radio: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  radioOn: { borderColor: colors.primary },
+  radioDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.primary },
+  airline: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text },
+  flightNum: { fontSize: 11, color: colors.textMuted },
+  directBadge: { backgroundColor: colors.accent + '20', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  directText: { fontSize: 10, color: colors.accent, fontWeight: '600' },
+  stops: { fontSize: 11, color: colors.textMuted },
+  legRow: { flexDirection: 'row', alignItems: 'center' },
+  endpoint: { width: 52 },
+  iata: { fontSize: 18, fontWeight: '700', color: colors.text },
+  time: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+  middle: { flex: 1, alignItems: 'center', gap: 3, paddingHorizontal: 8 },
+  dur: { fontSize: 10, color: colors.textDim },
+  line: { height: 1, width: '100%', backgroundColor: colors.border },
+  priceRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  price: { fontSize: 15, fontWeight: '700', color: colors.accent },
+  priceSub: { fontSize: 11, fontWeight: '400', color: colors.textMuted },
+  meta: { fontSize: 10, color: colors.textDim, flex: 1, textAlign: 'right' },
+  saveBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
+  saveBtnOff: { backgroundColor: colors.primaryLight },
+  saveBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+});
+
 // ─── Hotel card + results block ───────────────────────────────────────────────
 
 function HotelCard({ hotel, selected, onSelect }) {
@@ -100,13 +338,17 @@ function HotelCard({ hotel, selected, onSelect }) {
               {hotel.amenities.slice(0, 5).join(' · ')}
             </Text>
           )}
+
+          {hotel.why_it_fits && (
+            <Text style={hs.whyItFits} numberOfLines={2}>{hotel.why_it_fits}</Text>
+          )}
         </View>
       </TouchableOpacity>
     </View>
   );
 }
 
-function HotelResults({ hotels, onRefresh, onAddToTrip }) {
+function HotelResults({ hotels, searchParams, onRefresh, onAddToTrip }) {
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [added, setAdded] = useState(false);
 
@@ -119,6 +361,15 @@ function HotelResults({ hotels, onRefresh, onAddToTrip }) {
     if (selectedIdx === null || added) return;
     onAddToTrip(hotels[selectedIdx]);
     setAdded(true);
+  }
+
+  function handleNewSearch() {
+    let msg = 'Show me different hotel options';
+    if (searchParams?.location && searchParams?.check_in && searchParams?.check_out) {
+      const g = searchParams.guests || 1;
+      msg = `Search hotels in ${searchParams.location} from ${searchParams.check_in} to ${searchParams.check_out} for ${g} guest${g !== 1 ? 's' : ''}`;
+    }
+    onRefresh(msg);
   }
 
   return (
@@ -141,7 +392,7 @@ function HotelResults({ hotels, onRefresh, onAddToTrip }) {
         >
           <Text style={hs.addBtnText}>{added ? 'ADDED TO TRIP' : 'ADD TO TRIP'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={hs.refreshBtn} onPress={onRefresh} activeOpacity={0.8}>
+        <TouchableOpacity style={hs.refreshBtn} onPress={handleNewSearch} activeOpacity={0.8}>
           <Text style={hs.refreshBtnText}>NEW SEARCH</Text>
         </TouchableOpacity>
       </View>
@@ -161,10 +412,14 @@ const SUGGESTIONS = [
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function PlanningScreen({ route, navigation }) {
-  const { ariaPreferences, addToWishlist, removeFromWishlist, wishlist } = useApp();
+  const { ariaPreferences, addToWishlist, removeFromWishlist, updateWishlistItem, upsertWishlist, wishlist, preferences, itineraries, saveItinerary, updateItineraryDay } = useApp();
+
+  const greeting = preferences.name
+    ? `Hey ${preferences.name}! I'm Aria — your personal travel agent. Where are we heading?`
+    : "Hey there! I'm Aria — your personal travel agent. Where are we heading?";
 
   const [messages, setMessages] = useState([
-    { id: '0', role: 'aria', text: "Hey Marc! I'm Aria — your personal travel agent. Where are we heading?" }
+    { id: '0', role: 'aria', text: greeting }
   ]);
   const [history, setHistory] = useState([]);
   const [input, setInput] = useState('');
@@ -172,6 +427,7 @@ export default function PlanningScreen({ route, navigation }) {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const scrollRef = useRef(null);
   const shownHotelIdsRef = useRef(new Set());
+  const activeDestRef = useRef(null); // city currently being planned
 
   useEffect(() => {
     if (route?.params?.initialPrompt) {
@@ -210,24 +466,59 @@ export default function PlanningScreen({ route, navigation }) {
       });
       const data = await res.json();
       const reply = data.reply || 'Something went wrong.';
-      const hotels = data.structured_results?.type === 'hotel_results' && data.structured_results.hotels?.length > 0
-        ? data.structured_results.hotels
-        : null;
+      const rawHotels = data.structured_results?.type === 'hotel_results' && data.structured_results.hotels?.length > 0
+        ? data.structured_results.hotels : null;
+      const hotels = rawHotels ? extractWhyItFits(reply, rawHotels) : null;
+      const hotelSearchParams = hotels ? {
+        location: data.structured_results.location,
+        check_in: data.structured_results.check_in,
+        check_out: data.structured_results.check_out,
+        guests: data.structured_results.guests,
+      } : null;
+      const flight_options = data.flight_options?.results?.length > 0 ? data.flight_options : null;
+      const flight_time_options = data.flight_time_options?.options?.length > 0 ? data.flight_time_options : null;
+      const date_suggestions = data.date_suggestions?.options?.length > 0 ? data.date_suggestions : null;
 
+      // Handle itinerary results
+      if (data.itinerary_results?.success) {
+        const itiResult = data.itinerary_results;
+        const cityName = (itiResult.destination || '').split(',')[0].trim();
+        if (itiResult.partial_update && itiResult.update_day_index != null) {
+          const normalize = s => (s || '').toLowerCase().trim();
+          const existing = itineraries.find(i => normalize(i.city) === normalize(cityName));
+          if (existing) updateItineraryDay(existing.id, itiResult.update_day_index, itiResult.updated_slots || []);
+        } else if (itiResult.days?.length > 0) {
+          saveItinerary(cityName, itiResult.days);
+        }
+      }
+
+      // Handle tool calls
+      const norm = s => (s || '').toLowerCase().trim();
       if (data.tool_calls?.length > 0) {
         data.tool_calls.forEach(tool => {
-          if (tool.name === 'wishlist_update' && tool.input.action === 'add') {
-            addToWishlist({
-              city: tool.input.destination,
-              destination: tool.input.destination,
-              travel_window: tool.input.target_travel_window || null,
-              notes: tool.input.notes || '',
-              flag: '📍', lat: 0, lon: 0,
-            });
-          }
-          if (tool.name === 'wishlist_update' && tool.input.action === 'remove') {
-            const item = wishlist.find(w => w.city.toLowerCase() === tool.input.destination.toLowerCase());
-            if (item) removeFromWishlist(item.id);
+          if (tool.name === 'wishlist_update') {
+            const city = tool.input.destination;
+            if (tool.input.action === 'add') {
+              activeDestRef.current = city;
+              upsertWishlist({
+                city,
+                destination: city,
+                travel_window: tool.input.target_travel_window || null,
+                notes: tool.input.notes || '',
+                flag: '📍', lat: 0, lon: 0,
+              });
+            } else if (tool.input.action === 'update') {
+              const existing = wishlist.find(w => norm(w.city) === norm(city));
+              if (existing) {
+                const updates = {};
+                if (tool.input.target_travel_window) { updates.travel_window = tool.input.target_travel_window; updates.when = tool.input.target_travel_window; }
+                if (tool.input.notes) updates.notes = tool.input.notes;
+                if (Object.keys(updates).length > 0) updateWishlistItem(existing.id, updates);
+              }
+            } else if (tool.input.action === 'remove') {
+              const item = wishlist.find(w => norm(w.city) === norm(city));
+              if (item) removeFromWishlist(item.id);
+            }
           }
         });
       }
@@ -237,12 +528,11 @@ export default function PlanningScreen({ route, navigation }) {
       const ariaId = Date.now().toString();
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
-        { id: ariaId, role: 'aria', text: reply, hotels },
+        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, flight_options, flight_time_options, date_suggestions },
       ]);
 
-      // Track shown hotels so NEW SEARCH excludes them
       if (hotels?.length > 0) {
-        hotels.forEach(h => { if (h.hotel_id) shownHotelIdsRef.current.add(h.hotel_id); });
+        shownHotelIdsRef.current = new Set(hotels.map(h => h.hotel_id).filter(Boolean));
       }
     } catch {
       setMessages(prev => [
@@ -256,7 +546,7 @@ export default function PlanningScreen({ route, navigation }) {
   }
 
   function newChat() {
-    setMessages([{ id: '0', role: 'aria', text: "Hey Marc! I'm Aria — your personal travel agent. Where are we heading?" }]);
+    setMessages([{ id: '0', role: 'aria', text: greeting }]);
     setHistory([]);
     setInput('');
     setShowSuggestions(true);
@@ -307,26 +597,75 @@ export default function PlanningScreen({ route, navigation }) {
                   <View style={styles.ariaRow}>
                     <View style={styles.ariaAvatar}><Text style={styles.ariaAvatarText}>A</Text></View>
                     <View style={[styles.bubble, styles.ariaBubble]}>
-                      <MarkdownText text={msg.text} />
+                      <MarkdownText text={msg.hotels ? hotelIntro(msg.text) : msg.text} />
                     </View>
                   </View>
+                  {msg.date_suggestions && (
+                    <View style={styles.hotelWrap}>
+                      <DateChips
+                        suggestions={msg.date_suggestions}
+                        onSelect={(opt) => {
+                          const norm = s => (s || '').toLowerCase().trim();
+                          const city = norm(msg.date_suggestions.destination || activeDestRef.current || '');
+                          const existing = wishlist.find(w => norm(w.city) === city);
+                          if (existing) updateWishlistItem(existing.id, { travel_window: opt.label, when: opt.label });
+                          send(`I'd like to go ${opt.label} (${opt.check_in} to ${opt.check_out})`);
+                        }}
+                      />
+                    </View>
+                  )}
+                  {msg.flight_time_options && (
+                    <View style={styles.hotelWrap}>
+                      <FlightTimeChips
+                        options={msg.flight_time_options.options}
+                        onSelect={(opt) => {
+                          send(`I prefer ${opt.label} flights`);
+                        }}
+                      />
+                    </View>
+                  )}
+                  {msg.flight_options && (
+                    <View style={styles.hotelWrap}>
+                      <FlightResults
+                        options={msg.flight_options}
+                        onSave={(flight) => {
+                          const norm = s => (s || '').toLowerCase().trim();
+                          const city = norm(activeDestRef.current || '');
+                          const existing = wishlist.find(w => norm(w.city) === city);
+                          if (existing) {
+                            updateWishlistItem(existing.id, { flight_info: flight });
+                            setTimeout(() => send(`Flight saved. Now let's find a hotel in ${existing.destination}.`), 300);
+                          }
+                        }}
+                      />
+                    </View>
+                  )}
                   {msg.hotels?.length > 0 && (
                     <View style={styles.hotelWrap}>
                       <HotelResults
                         hotels={msg.hotels}
-                        onRefresh={() => send('Show me different hotel options')}
+                        searchParams={msg.hotelSearchParams}
+                        onRefresh={(refreshMsg) => send(refreshMsg)}
                         onAddToTrip={(hotel) => {
-                          addToWishlist({
-                            city: hotel.name,
-                            country: hotel.city || hotel.country || '',
-                            flag: '🏨',
-                            lat: hotel.coordinates?.lat || 0,
-                            lon: hotel.coordinates?.lon || 0,
-                            photo_url: hotel.photos?.[0] || null,
-                            notes: hotel.cheapest_rate
-                              ? `${hotel.cheapest_rate.currency} ${hotel.cheapest_rate.per_night}/night · ${hotel.stars || '?'} stars`
-                              : '',
-                          });
+                          const norm = s => (s || '').toLowerCase().trim();
+                          const cityName = (msg.hotelSearchParams?.location || activeDestRef.current || '').split(',')[0].trim();
+                          const existing = wishlist.find(w => norm(w.city) === norm(cityName));
+                          if (existing) {
+                            updateWishlistItem(existing.id, {
+                              hotel_info: {
+                                name: hotel.name,
+                                stars: hotel.stars,
+                                per_night: hotel.cheapest_rate?.per_night,
+                                total: hotel.cheapest_rate?.total,
+                                currency: hotel.cheapest_rate?.currency,
+                                nights: hotel.cheapest_rate ? Math.round(hotel.cheapest_rate.total / hotel.cheapest_rate.per_night) : null,
+                                room_name: hotel.cheapest_rate?.room_name,
+                                board: hotel.cheapest_rate?.board,
+                                photo_url: hotel.photos?.[0] || null,
+                              },
+                            });
+                            setTimeout(() => send(`Hotel added to my trip for ${existing.destination}.`), 300);
+                          }
                         }}
                       />
                     </View>
@@ -451,6 +790,7 @@ const hs = StyleSheet.create({
   price: { fontSize: 12, color: colors.text, marginLeft: 'auto' },
   roomLine: { fontSize: 11, color: colors.textMuted },
   amenities: { fontSize: 11, color: colors.textDim },
+  whyItFits: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
   actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
   addBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
   addBtnOff: { backgroundColor: colors.primaryLight },
