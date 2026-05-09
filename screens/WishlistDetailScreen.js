@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   ScrollView, TouchableOpacity, TextInput, Modal,
@@ -148,12 +148,32 @@ function WindowPicker({ value, onSelect }) {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+const BACKEND = 'https://aria-travel-production.up.railway.app';
+
 export default function WishlistDetailScreen({ route, navigation }) {
   const { item: initial, accentColor } = route.params;
   const { updateWishlistItem, removeFromWishlist, itineraries } = useApp();
 
   const [item, setItem] = useState(initial);
   const [itiExpanded, setItiExpanded] = useState(false);
+
+  // Fetch Google photos for the hotel if we only have one (or none)
+  useEffect(() => {
+    const hi = item.hotel_info;
+    if (!hi?.name) return;
+    if ((hi.photos?.length ?? 0) >= 2) return; // already enriched
+
+    fetch(`${BACKEND}/hotel-photos?name=${encodeURIComponent(hi.name)}&city=${encodeURIComponent(item.city || '')}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.photos?.length > 0) {
+          const updated = { ...hi, photos: data.photos };
+          setItem(prev => ({ ...prev, hotel_info: updated }));
+          updateWishlistItem(item.id, { hotel_info: updated });
+        }
+      })
+      .catch(() => {});
+  }, [item.hotel_info?.name]);
 
   const itinerary = itineraries.find(i => {
     const norm = s => (s || '').toLowerCase().trim();
