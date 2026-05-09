@@ -580,14 +580,29 @@ export default function PlanningScreen({ route, navigation }) {
   const shownHotelIdsRef = useRef(new Set());
   const activeDestRef = useRef(null);
   const pendingRestaurantRef = useRef(null);
+  const pendingAutoSendRef = useRef(null);
 
   useEffect(() => {
-    if (route?.params?.initialPrompt) {
-      setInput(route.params.initialPrompt);
-      setShowSuggestions(false);
-      navigation?.setParams({ initialPrompt: undefined });
-    }
+    const prompt = route?.params?.initialPrompt;
+    if (!prompt) return;
+    const city = route?.params?.planCity;
+    navigation?.setParams({ initialPrompt: undefined, planCity: undefined });
+    if (city) activeDestRef.current = city;
+    setShowSuggestions(false);
+    // Reset to a fresh chat, then auto-send via pendingAutoSendRef
+    setMessages([{ id: '0', role: 'aria', text: greeting }]);
+    setHistory([]);
+    setLoading(false);
+    pendingAutoSendRef.current = prompt;
   }, [route?.params?.initialPrompt]);
+
+  // Auto-send after chat resets (history becomes empty)
+  useEffect(() => {
+    if (!pendingAutoSendRef.current || loading || history.length > 0) return;
+    const prompt = pendingAutoSendRef.current;
+    pendingAutoSendRef.current = null;
+    send(prompt);
+  }, [history, loading]);
 
   async function send(text) {
     const msg = text || input.trim();

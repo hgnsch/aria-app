@@ -393,6 +393,7 @@ export default function WishlistDetailScreen({ route, navigation }) {
                 screen: 'Planning',
                 params: {
                   initialPrompt: `Plan a detailed day-by-day itinerary for my ${item.city} trip${item.travel_window ? ` in ${item.travel_window}` : ''}.`,
+                  planCity: item.city,
                 },
               })}
             >
@@ -467,12 +468,27 @@ export default function WishlistDetailScreen({ route, navigation }) {
         {/* Plan with Aria */}
         <TouchableOpacity
           style={[s.ariaBtn, { borderColor: accentColor }]}
-          onPress={() => navigation.navigate('Main', {
-            screen: 'Planning',
-            params: {
-              initialPrompt: `Tell me about ${item.city}${item.country ? `, ${item.country}` : ''}. What's the best time to visit, what should I see, and how should I plan a trip there?`,
-            },
-          })}
+          onPress={() => {
+            const hasFlights = !!item.flight_info;
+            const hasHotel = !!item.hotel_info;
+            const hasItinerary = !!itinerary;
+            let initialPrompt;
+            if (hasFlights && hasHotel && hasItinerary) {
+              initialPrompt = `I want to add restaurants to my ${item.city} itinerary. Can you find some great options?`;
+            } else if (hasFlights && hasHotel) {
+              initialPrompt = `My flights and hotel for ${item.city} are all set${item.travel_window ? ` for ${item.travel_window}` : ''}. Please build me a day-by-day itinerary.`;
+            } else if (hasFlights) {
+              initialPrompt = `I've got my flights to ${item.city} booked${item.travel_window ? ` for ${item.travel_window}` : ''}. Now help me find a hotel.`;
+            } else if (item.travel_window) {
+              initialPrompt = `I want to plan my ${item.city} trip for ${item.travel_window}. Help me through flights and accommodation.`;
+            } else {
+              initialPrompt = `I want to plan my trip to ${item.city}. When would you recommend going, and how long should I stay?`;
+            }
+            navigation.navigate('Main', {
+              screen: 'Planning',
+              params: { initialPrompt, planCity: item.city },
+            });
+          }}
         >
           <Text style={[s.ariaBtnText, { color: accentColor }]}>PLAN WITH ARIA ✈</Text>
         </TouchableOpacity>
