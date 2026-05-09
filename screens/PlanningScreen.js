@@ -465,7 +465,6 @@ export default function PlanningScreen({ route, navigation }) {
         }),
       });
       const data = await res.json();
-      const reply = data.reply || 'Something went wrong.';
       const rawHotels = data.structured_results?.type === 'hotel_results' && data.structured_results.hotels?.length > 0
         ? data.structured_results.hotels : null;
       const hotels = rawHotels ? extractWhyItFits(reply, rawHotels) : null;
@@ -478,6 +477,9 @@ export default function PlanningScreen({ route, navigation }) {
       const flight_options = data.flight_options?.results?.length > 0 ? data.flight_options : null;
       const flight_time_options = data.flight_time_options?.options?.length > 0 ? data.flight_time_options : null;
       const date_suggestions = data.date_suggestions?.options?.length > 0 ? data.date_suggestions : null;
+
+      const hasStructuredContent = !!(flight_time_options || flight_options || date_suggestions || hotels);
+      const reply = data.reply || (hasStructuredContent ? '' : 'Something went wrong.');
 
       // Handle itinerary results
       if (data.itinerary_results?.success) {
@@ -592,13 +594,16 @@ export default function PlanningScreen({ route, navigation }) {
             }
 
             if (msg.role === 'aria') {
+              const displayText = msg.hotels ? hotelIntro(msg.text) : msg.text;
               return (
                 <View key={msg.id} style={styles.ariaGroup}>
                   <View style={styles.ariaRow}>
                     <View style={styles.ariaAvatar}><Text style={styles.ariaAvatarText}>A</Text></View>
-                    <View style={[styles.bubble, styles.ariaBubble]}>
-                      <MarkdownText text={msg.hotels ? hotelIntro(msg.text) : msg.text} />
-                    </View>
+                    {displayText?.trim() ? (
+                      <View style={[styles.bubble, styles.ariaBubble]}>
+                        <MarkdownText text={displayText} />
+                      </View>
+                    ) : null}
                   </View>
                   {msg.date_suggestions && (
                     <View style={styles.hotelWrap}>
@@ -619,7 +624,7 @@ export default function PlanningScreen({ route, navigation }) {
                       <FlightTimeChips
                         options={msg.flight_time_options.options}
                         onSelect={(opt) => {
-                          send(`I prefer ${opt.label} flights`);
+                          send(`I prefer to fly in the ${opt.value}. Please search for flights now.`);
                         }}
                       />
                     </View>
@@ -634,7 +639,7 @@ export default function PlanningScreen({ route, navigation }) {
                           const existing = wishlist.find(w => norm(w.city) === city);
                           if (existing) {
                             updateWishlistItem(existing.id, { flight_info: flight });
-                            setTimeout(() => send(`Flight saved. Now let's find a hotel in ${existing.destination}.`), 300);
+                            setTimeout(() => send(`Flight saved. Now let's find a hotel in ${existing.city}.`), 300);
                           }
                         }}
                       />
@@ -664,7 +669,7 @@ export default function PlanningScreen({ route, navigation }) {
                                 photo_url: hotel.photos?.[0] || null,
                               },
                             });
-                            setTimeout(() => send(`Hotel added to my trip for ${existing.destination}.`), 300);
+                            setTimeout(() => send(`Hotel added to my ${existing.city} trip.`), 300);
                           }
                         }}
                       />
