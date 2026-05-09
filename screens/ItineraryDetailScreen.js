@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, SafeAreaView, StatusBar,
   ScrollView, FlatList, TouchableOpacity, Image, Linking,
   useWindowDimensions,
 } from 'react-native';
 import { colors } from '../theme/colors';
+import { useApp } from '../context/AppContext';
+
+const BACKEND = 'https://aria-travel-production.up.railway.app';
 
 function PhotoCarousel({ photos }) {
   const { width } = useWindowDimensions();
@@ -42,9 +45,60 @@ function PhotoCarousel({ photos }) {
 
 export default function ItineraryDetailScreen({ route, navigation }) {
   const { day, dayIndex, destination, country, accentColor = colors.primary, itineraryId } = route.params;
+  const { updateItineraryDay } = useApp();
 
   const slots = day?.slots || [];
   const accent = accentColor || colors.primary;
+
+  // slotPhotos: { [slotIndex]: string[] } — fetched from Google for slots without photos
+  const [slotPhotos, setSlotPhotos] = useState({});
+
+  useEffect(() => {
+    const slotsToEnrich = slots
+      .map((slot, i) => ({ slot, i }))
+      .filter(({ slot }) => !slot.photos?.length && !slot.photo_url);
+
+    if (slotsToEnrich.length === 0) return;
+
+    let cancelled = false;
+
+    Promise.all(
+      slotsToEnrich.map(async ({ slot, i }) => {
+        try {
+          const query = encodeURIComponent(slot.location || slot.activity || '');
+          const city = encodeURIComponent(destination || '');
+          const res = await fetch(`${BACKEND}/activity-photos?activity=${query}&city=${city}`);
+          const data = await res.json();
+          return { i, photos: data.photos || [] };
+        } catch {
+          return { i, photos: [] };
+        }
+      })
+    ).then(results => {
+      if (cancelled) return;
+
+      const photoMap = {};
+      results.forEach(({ i, photos }) => {
+        if (photos.length > 0) photoMap[i] = photos;
+      });
+
+      if (Object.keys(photoMap).length === 0) return;
+
+      setSlotPhotos(photoMap);
+
+      // Persist back so they load instantly next time
+      if (itineraryId != null && dayIndex != null) {
+        const updatedSlots = slots.map((slot, i) =>
+          photoMap[i]
+            ? { ...slot, photos: photoMap[i], photo_url: photoMap[i][0] }
+            : slot
+        );
+        updateItineraryDay(itineraryId, dayIndex, updatedSlots);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <SafeAreaView style={s.safe}>
@@ -78,14 +132,17 @@ export default function ItineraryDetailScreen({ route, navigation }) {
         ) : (
           slots.map((slot, i) => {
             const isRestaurant = slot.slot_type === 'restaurant';
-            const photos = slot.photos?.length > 0 ? slot.photos : (slot.photo_url ? [slot.photo_url] : []);
+            const photos = slot.photos?.length > 0
+              ? slot.photos
+              : slotPhotos[i]?.length > 0
+                ? slotPhotos[i]
+                : slot.photo_url ? [slot.photo_url] : [];
+
             return (
               <View key={i}>
                 {i > 0 && <View style={s.divider} />}
 
-                {isRestaurant && photos.length > 0 ? (
-                  <PhotoCarousel photos={photos} />
-                ) : null}
+                {photos.length > 0 ? <PhotoCarousel photos={photos} /> : null}
 
                 <View style={s.slotRow}>
                   <View style={s.timeCol}>
