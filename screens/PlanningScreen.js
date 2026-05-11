@@ -885,8 +885,9 @@ export default function PlanningScreen({ route, navigation }) {
                                 photos: hotel.photos?.slice(0, 6) || [],
                               },
                             });
-                            setTimeout(() => send(`Hotel added to my ${existing.city} trip.`), 300);
                           }
+                          const city = existing?.city || cityName;
+                          if (city) setTimeout(() => send(`Hotel added to my ${city} trip.`), 300);
                         }}
                       />
                     </View>
