@@ -687,6 +687,18 @@ export default function PlanningScreen({ route, navigation }) {
           user_preferences: {
             ...ariaPreferences,
             excluded_hotel_ids: [...shownHotelIdsRef.current],
+            // Strip photo arrays and descriptions from itinerary slots — not needed by the
+            // server and can make the request body large enough to abort the connection.
+            itineraries: ariaPreferences.itineraries?.map(itin => ({
+              city: itin.city,
+              days: itin.days?.map(day => ({
+                date_label: day.date_label,
+                summary: day.summary,
+                slots: (day.slots || []).map(
+                  ({ photos, photo_url, description, ...slot }) => slot
+                ),
+              })),
+            })),
           },
         }),
       });
