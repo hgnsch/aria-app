@@ -24,7 +24,7 @@ const CATEGORIES = [
 
 
 export default function IdeasScreen({ navigation }) {
-  const { ariaPreferences, addToWishlist } = useApp();
+  const { ariaPreferences, preferences, addToWishlist } = useApp();
 
   const [view, setView] = useState('categories');
   const [activeCategory, setActiveCategory] = useState(null);
@@ -50,8 +50,14 @@ export default function IdeasScreen({ navigation }) {
           category_id: category.id,
           user_preferences: {
             travel_style: ariaPreferences.travel_style,
+            food_interests: preferences.food_interests,
+            pace: preferences.pace,
+            budget_sensitivity: ariaPreferences.budget_sensitivity,
+            instagrammable_spots: preferences.instagrammable_spots,
             household: ariaPreferences.household,
+            hotel_stars: ariaPreferences.hotel_stars,
             wishlist: ariaPreferences.wishlist,
+            past_trips: ariaPreferences.past_trips,
           },
         }),
       });
