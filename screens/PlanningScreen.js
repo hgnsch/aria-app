@@ -553,6 +553,65 @@ const rsc = StyleSheet.create({
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 
+function ItineraryPreviewCard({ itinerary, onView }) {
+  return (
+    <View style={ic.card}>
+      <View style={ic.header}>
+        <Text style={ic.dest}>{(itinerary.destination || '').toUpperCase()}</Text>
+        <Text style={ic.count}>{itinerary.days?.length} DAYS</Text>
+      </View>
+      {(itinerary.days || []).map((day, i) => (
+        <View key={i} style={ic.dayRow}>
+          <Text style={ic.dayLabel}>{day.date_label || `Day ${i + 1}`}</Text>
+          {day.summary ? <Text style={ic.daySummary} numberOfLines={1}>{day.summary}</Text> : null}
+        </View>
+      ))}
+      <TouchableOpacity style={ic.viewBtn} onPress={onView} activeOpacity={0.8}>
+        <Text style={ic.viewBtnText}>VIEW FULL ITINERARY →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const ic = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginTop: 6,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  dest: { fontSize: 12, fontWeight: '700', color: colors.text, letterSpacing: 0.8 },
+  count: { fontSize: 11, color: colors.textMuted, letterSpacing: 0.5 },
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border + '66',
+  },
+  dayLabel: { fontSize: 12, fontWeight: '600', color: colors.primary, width: 80 },
+  daySummary: { flex: 1, fontSize: 12, color: colors.textMuted },
+  viewBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  viewBtnText: { fontSize: 11, fontWeight: '600', color: colors.primary, letterSpacing: 0.8 },
+});
+
 const SUGGESTIONS = [
   "Madrid long weekend in May",
   "Add Tokyo to my wishlist",
@@ -634,7 +693,7 @@ export default function PlanningScreen({ route, navigation }) {
       const data = await res.json();
       const rawHotels = data.structured_results?.type === 'hotel_results' && data.structured_results.hotels?.length > 0
         ? data.structured_results.hotels : null;
-      const hotels = rawHotels ? extractWhyItFits(reply, rawHotels) : null;
+      const hotels = rawHotels ? extractWhyItFits(data.reply, rawHotels) : null;
       const hotelSearchParams = hotels ? {
         location: data.structured_results.location,
         check_in: data.structured_results.check_in,
@@ -650,7 +709,11 @@ export default function PlanningScreen({ route, navigation }) {
       const restaurants = rawRestaurants
         ? extractRestaurantWhyItFits(data.reply, rawRestaurants) : null;
 
-      const hasStructuredContent = !!(flight_time_options || flight_options || date_suggestions || hotels || restaurants);
+      const itinerary = data.itinerary_results?.success && data.itinerary_results?.days?.length > 0
+        ? { destination: data.itinerary_results.destination, days: data.itinerary_results.days }
+        : null;
+
+      const hasStructuredContent = !!(flight_time_options || flight_options || date_suggestions || hotels || restaurants || itinerary);
       const reply = data.reply || (hasStructuredContent ? '' : 'Something went wrong.');
 
       // Handle itinerary results
@@ -731,7 +794,7 @@ export default function PlanningScreen({ route, navigation }) {
       const ariaId = Date.now().toString();
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
-        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, restaurants, flight_options, flight_time_options, date_suggestions },
+        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, restaurants, flight_options, flight_time_options, date_suggestions, itinerary },
       ]);
 
       if (hotels?.length > 0) {
@@ -795,9 +858,15 @@ export default function PlanningScreen({ route, navigation }) {
             }
 
             if (msg.role === 'aria') {
-              const displayText = msg.restaurants
-                ? restaurantIntro(msg.text)
-                : msg.hotels ? hotelIntro(msg.text) : msg.text;
+              const displayText = (() => {
+                if (msg.restaurants) return restaurantIntro(msg.text);
+                if (msg.hotels) return hotelIntro(msg.text);
+                // Strip "Why it fits you:" lines if restaurant cards failed to load
+                if (msg.text?.match(/Why it fits you:/i)) {
+                  return msg.text.replace(/Why it fits you:[^\n]*/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+                }
+                return msg.text;
+              })();
               return (
                 <View key={msg.id} style={styles.ariaGroup}>
                   <View style={styles.ariaRow}>
@@ -819,6 +888,14 @@ export default function PlanningScreen({ route, navigation }) {
                           if (existing) updateWishlistItem(existing.id, { travel_window: opt.label, when: opt.label });
                           send(`I'd like to go ${opt.label} (${opt.check_in} to ${opt.check_out})`);
                         }}
+                      />
+                    </View>
+                  )}
+                  {msg.itinerary && (
+                    <View style={styles.hotelWrap}>
+                      <ItineraryPreviewCard
+                        itinerary={msg.itinerary}
+                        onView={() => navigation.navigate('Main', { screen: 'Itineraries' })}
                       />
                     </View>
                   )}
