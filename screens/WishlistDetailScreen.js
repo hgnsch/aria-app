@@ -44,6 +44,16 @@ function HotelPhotoStrip({ photos }) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// flight_info may be a legacy direct object or { outbound, return }
+function getOutbound(flight_info) {
+  if (!flight_info) return null;
+  return flight_info.outbound || flight_info;
+}
+function getReturnFlight(flight_info) {
+  if (!flight_info) return null;
+  return flight_info.return || null;
+}
+
 function fmtTime(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -177,7 +187,11 @@ export default function WishlistDetailScreen({ route, navigation }) {
 
   const itinerary = itineraries.find(i => {
     const norm = s => (s || '').toLowerCase().trim();
-    return norm(i.city) === norm(item.city) || i.wishlist_item_id === item.id;
+    return (
+      norm(i.city) === norm(item.city) ||
+      norm(i.city.split(',')[0]) === norm(item.city.split(',')[0]) ||
+      i.wishlist_item_id === item.id
+    );
   }) || null;
   const [notes, setNotes] = useState(initial.notes || '');
   const [showWindowModal, setShowWindowModal] = useState(false);
@@ -256,62 +270,103 @@ export default function WishlistDetailScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {/* Indicative flight */}
-        {item.flight_info && (
-          <View style={s.card}>
-            <Text style={[s.cardTitle, { marginBottom: 12 }]}>INDICATIVE FLIGHT</Text>
+        {/* Indicative flights */}
+        {item.flight_info && (() => {
+          const outbound = getOutbound(item.flight_info);
+          const returnFlight = getReturnFlight(item.flight_info);
+          return (
+            <View style={s.card}>
+              <Text style={[s.cardTitle, { marginBottom: 12 }]}>INDICATIVE FLIGHTS</Text>
 
-            <View style={s.flightHeader}>
-              <Text style={s.flightAirline}>
-                {item.flight_info.airline}
-              </Text>
-              <Text style={s.flightNum}>{item.flight_info.flight_number}</Text>
-              {item.flight_info.stops === 0
-                ? <Text style={s.flightDirect}>Direct</Text>
-                : <Text style={s.flightDirect}>{item.flight_info.stops} stop</Text>
-              }
-            </View>
-
-            <View style={s.flightLeg}>
-              <View style={s.flightEndpoint}>
-                <Text style={s.flightCode}>{item.flight_info.origin}</Text>
-                <Text style={s.flightTime}>{fmtTime(item.flight_info.departure)}</Text>
-                <Text style={s.flightDate}>{fmtDate(item.flight_info.departure)}</Text>
+              {/* Outbound leg */}
+              <Text style={s.flightLegLabel}>OUTBOUND</Text>
+              <View style={s.flightHeader}>
+                <Text style={s.flightAirline}>{outbound.airline}</Text>
+                <Text style={s.flightNum}>{outbound.flight_number}</Text>
+                {outbound.stops === 0
+                  ? <Text style={s.flightDirect}>Direct</Text>
+                  : <Text style={s.flightDirect}>{outbound.stops} stop</Text>
+                }
               </View>
-
-              <View style={s.flightMiddle}>
-                <Text style={s.flightDur}>{fmtDuration(item.flight_info.duration_minutes)}</Text>
-                <View style={s.flightLine} />
+              <View style={s.flightLeg}>
+                <View style={s.flightEndpoint}>
+                  <Text style={s.flightCode}>{outbound.origin}</Text>
+                  <Text style={s.flightTime}>{fmtTime(outbound.departure)}</Text>
+                  <Text style={s.flightDate}>{fmtDate(outbound.departure)}</Text>
+                </View>
+                <View style={s.flightMiddle}>
+                  <Text style={s.flightDur}>{fmtDuration(outbound.duration_minutes)}</Text>
+                  <View style={s.flightLine} />
+                </View>
+                <View style={[s.flightEndpoint, { alignItems: 'flex-end' }]}>
+                  <Text style={s.flightCode}>{outbound.destination}</Text>
+                  <Text style={s.flightTime}>{fmtTime(outbound.arrival)}</Text>
+                  <Text style={s.flightDate}>{fmtDate(outbound.arrival)}</Text>
+                </View>
               </View>
-
-              <View style={[s.flightEndpoint, { alignItems: 'flex-end' }]}>
-                <Text style={s.flightCode}>{item.flight_info.destination}</Text>
-                <Text style={s.flightTime}>{fmtTime(item.flight_info.arrival)}</Text>
-                <Text style={s.flightDate}>{fmtDate(item.flight_info.arrival)}</Text>
-              </View>
-            </View>
-
-            <View style={s.flightPriceRow}>
-              <Text style={s.flightPrice}>
-                {item.flight_info.currency} {item.flight_info.price_per_person}
-                <Text style={s.flightPriceSub}>/person</Text>
-              </Text>
-              {item.flight_info.total_price !== item.flight_info.price_per_person && (
-                <Text style={s.flightTotal}>
-                  {item.flight_info.currency} {item.flight_info.total_price} total
+              <View style={s.flightPriceRow}>
+                <Text style={s.flightPrice}>
+                  {outbound.currency} {outbound.price_per_person}
+                  <Text style={s.flightPriceSub}>/person</Text>
                 </Text>
+                {outbound.total_price !== outbound.price_per_person && (
+                  <Text style={s.flightTotal}>
+                    {outbound.currency} {outbound.total_price} total
+                  </Text>
+                )}
+              </View>
+              <Text style={s.flightMeta}>
+                {[outbound.cabin_class, outbound.baggage_included ? 'Baggage included' : 'Carry-on only', outbound.refundable ? 'Refundable' : null].filter(Boolean).join(' · ')}
+              </Text>
+
+              {/* Return leg */}
+              {returnFlight && (
+                <>
+                  <View style={s.flightDivider} />
+                  <Text style={s.flightLegLabel}>RETURN</Text>
+                  <View style={s.flightHeader}>
+                    <Text style={s.flightAirline}>{returnFlight.airline}</Text>
+                    <Text style={s.flightNum}>{returnFlight.flight_number}</Text>
+                    {returnFlight.stops === 0
+                      ? <Text style={s.flightDirect}>Direct</Text>
+                      : <Text style={s.flightDirect}>{returnFlight.stops} stop</Text>
+                    }
+                  </View>
+                  <View style={s.flightLeg}>
+                    <View style={s.flightEndpoint}>
+                      <Text style={s.flightCode}>{returnFlight.origin}</Text>
+                      <Text style={s.flightTime}>{fmtTime(returnFlight.departure)}</Text>
+                      <Text style={s.flightDate}>{fmtDate(returnFlight.departure)}</Text>
+                    </View>
+                    <View style={s.flightMiddle}>
+                      <Text style={s.flightDur}>{fmtDuration(returnFlight.duration_minutes)}</Text>
+                      <View style={s.flightLine} />
+                    </View>
+                    <View style={[s.flightEndpoint, { alignItems: 'flex-end' }]}>
+                      <Text style={s.flightCode}>{returnFlight.destination}</Text>
+                      <Text style={s.flightTime}>{fmtTime(returnFlight.arrival)}</Text>
+                      <Text style={s.flightDate}>{fmtDate(returnFlight.arrival)}</Text>
+                    </View>
+                  </View>
+                  <View style={s.flightPriceRow}>
+                    <Text style={s.flightPrice}>
+                      {returnFlight.currency} {returnFlight.price_per_person}
+                      <Text style={s.flightPriceSub}>/person</Text>
+                    </Text>
+                    {returnFlight.total_price !== returnFlight.price_per_person && (
+                      <Text style={s.flightTotal}>
+                        {returnFlight.currency} {returnFlight.total_price} total
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={s.flightMeta}>
+                    {[returnFlight.cabin_class, returnFlight.baggage_included ? 'Baggage included' : 'Carry-on only', returnFlight.refundable ? 'Refundable' : null].filter(Boolean).join(' · ')}
+                  </Text>
+                </>
               )}
             </View>
-
-            <Text style={s.flightMeta}>
-              {[
-                item.flight_info.cabin_class,
-                item.flight_info.baggage_included ? 'Baggage included' : 'Carry-on only',
-                item.flight_info.refundable ? 'Refundable' : null,
-              ].filter(Boolean).join(' · ')}
-            </Text>
-          </View>
-        )}
+          );
+        })()}
 
         {/* Hotel info */}
         {item.hotel_info && (
@@ -355,14 +410,20 @@ export default function WishlistDetailScreen({ route, navigation }) {
             ) : null}
 
             {/* Total trip cost */}
-            {item.flight_info?.total_price && item.hotel_info?.total ? (
-              <View style={s.totalRow}>
-                <Text style={s.totalLabel}>ESTIMATED TRIP TOTAL</Text>
-                <Text style={s.totalValue}>
-                  {item.hotel_info.currency} {Math.round(item.flight_info.total_price + item.hotel_info.total).toLocaleString()}
-                </Text>
-              </View>
-            ) : null}
+            {item.flight_info && item.hotel_info?.total ? (() => {
+              const ob = getOutbound(item.flight_info);
+              const ret = getReturnFlight(item.flight_info);
+              const flightTotal = (ob?.total_price || 0) + (ret?.total_price || 0);
+              if (!flightTotal) return null;
+              return (
+                <View style={s.totalRow}>
+                  <Text style={s.totalLabel}>ESTIMATED TRIP TOTAL</Text>
+                  <Text style={s.totalValue}>
+                    {item.hotel_info.currency} {Math.round(flightTotal + item.hotel_info.total).toLocaleString()}
+                  </Text>
+                </View>
+              );
+            })() : null}
           </View>
         )}
 
@@ -593,6 +654,8 @@ const s = StyleSheet.create({
   flightPriceSub: { fontSize: 12, fontWeight: '400', color: colors.textMuted },
   flightTotal: { fontSize: 12, color: colors.textMuted },
   flightMeta: { fontSize: 11, color: colors.textDim },
+  flightLegLabel: { fontSize: 10, fontWeight: '700', color: colors.textMuted, letterSpacing: 0.8, marginBottom: 8 },
+  flightDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 14 },
 
   hotelHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   hotelName: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.text },

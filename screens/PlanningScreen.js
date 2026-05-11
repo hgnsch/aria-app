@@ -272,7 +272,7 @@ function FlightCard({ flight, selected, onSelect }) {
   );
 }
 
-function FlightResults({ options, onSave }) {
+function FlightResults({ options, flightPhase = 'departure', onSave }) {
   const [selectedIdx, setSelectedIdx] = useState(null);
   const [saved, setSaved] = useState(false);
 
@@ -282,8 +282,16 @@ function FlightResults({ options, onSave }) {
     setSaved(true);
   }
 
+  const isReturn = flightPhase === 'return';
+  const saveLabel = saved
+    ? (isReturn ? 'RETURN SAVED' : 'DEPARTURE SAVED')
+    : (isReturn ? 'SAVE RETURN FLIGHT' : 'SAVE DEPARTURE FLIGHT');
+
   return (
     <View style={fs.block}>
+      {isReturn && (
+        <Text style={fs.phaseLabel}>↩ Return flight</Text>
+      )}
       {options.results.map((flight, i) => (
         <FlightCard
           key={i}
@@ -298,7 +306,7 @@ function FlightResults({ options, onSave }) {
         disabled={selectedIdx === null || saved}
         activeOpacity={0.8}
       >
-        <Text style={fs.saveBtnText}>{saved ? 'FLIGHT SAVED TO TRIP' : 'SAVE TO TRIP'}</Text>
+        <Text style={fs.saveBtnText}>{saveLabel}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -335,6 +343,7 @@ const fs = StyleSheet.create({
   saveBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 11, alignItems: 'center' },
   saveBtnOff: { backgroundColor: colors.primaryLight },
   saveBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+  phaseLabel: { fontSize: 11, fontWeight: '600', color: colors.primary, letterSpacing: 0.5, marginBottom: 4 },
 });
 
 // ─── Hotel card + results block ───────────────────────────────────────────────
@@ -468,45 +477,43 @@ function RestaurantCard({ restaurant, selected, onToggle }) {
   const priceColor = { '$': colors.accent, '$$': colors.text, '$$$': colors.primary, '$$$$': colors.primary };
 
   return (
-    <TouchableOpacity
-      style={[rsc.card, selected && rsc.cardSelected]}
-      onPress={onToggle}
-      activeOpacity={0.85}
-    >
+    <View style={[rsc.card, selected && rsc.cardSelected]}>
       {selected && (
         <View style={rsc.checkBadge}>
           <Text style={rsc.checkText}>✓</Text>
         </View>
       )}
       <PhotoCarousel photos={restaurant.photos || []} height={130} />
-      <View style={rsc.info}>
-        <View style={rsc.nameRow}>
-          <Text style={rsc.name} numberOfLines={1}>{restaurant.name}</Text>
-          {restaurant.price && (
-            <Text style={[rsc.price, { color: priceColor[restaurant.price] || colors.text }]}>
-              {restaurant.price}
-            </Text>
-          )}
-        </View>
-        <View style={rsc.metaRow}>
-          {restaurant.rating != null && (
-            <Text style={rsc.rating}>★ {restaurant.rating}</Text>
-          )}
-          {restaurant.review_count != null && (
-            <Text style={rsc.reviews}>({restaurant.review_count})</Text>
-          )}
-          {restaurant.cuisine ? (
-            <Text style={rsc.cuisine} numberOfLines={1}>{restaurant.cuisine}</Text>
+      <TouchableOpacity onPress={onToggle} activeOpacity={0.85}>
+        <View style={rsc.info}>
+          <View style={rsc.nameRow}>
+            <Text style={rsc.name} numberOfLines={1}>{restaurant.name}</Text>
+            {restaurant.price && (
+              <Text style={[rsc.price, { color: priceColor[restaurant.price] || colors.text }]}>
+                {restaurant.price}
+              </Text>
+            )}
+          </View>
+          <View style={rsc.metaRow}>
+            {restaurant.rating != null && (
+              <Text style={rsc.rating}>★ {restaurant.rating}</Text>
+            )}
+            {restaurant.review_count != null && (
+              <Text style={rsc.reviews}>({restaurant.review_count})</Text>
+            )}
+            {restaurant.cuisine ? (
+              <Text style={rsc.cuisine} numberOfLines={1}>{restaurant.cuisine}</Text>
+            ) : null}
+          </View>
+          {restaurant.address ? (
+            <Text style={rsc.address} numberOfLines={1}>{restaurant.address}</Text>
+          ) : null}
+          {restaurant.why_it_fits ? (
+            <Text style={rsc.whyItFits} numberOfLines={2}>{restaurant.why_it_fits}</Text>
           ) : null}
         </View>
-        {restaurant.address ? (
-          <Text style={rsc.address} numberOfLines={1}>{restaurant.address}</Text>
-        ) : null}
-        {restaurant.why_it_fits ? (
-          <Text style={rsc.whyItFits} numberOfLines={2}>{restaurant.why_it_fits}</Text>
-        ) : null}
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -674,6 +681,7 @@ export default function PlanningScreen({ route, navigation }) {
   const scrollRef = useRef(null);
   const shownHotelIdsRef = useRef(new Set());
   const activeDestRef = useRef(null);
+  const flightPhaseRef = useRef('departure');
   const pendingRestaurantsRef = useRef([]);
   const pendingAutoSendRef = useRef(null);
 
@@ -847,7 +855,7 @@ export default function PlanningScreen({ route, navigation }) {
       const ariaId = Date.now().toString();
       setMessages(prev => [
         ...prev.filter(m => m.id !== 'typing'),
-        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, restaurants, flight_options, flight_time_options, date_suggestions, itinerary },
+        { id: ariaId, role: 'aria', text: reply, hotels, hotelSearchParams, restaurants, flight_options, flightPhase: flight_options ? flightPhaseRef.current : undefined, flight_time_options, date_suggestions, itinerary },
       ]);
 
       if (hotels?.length > 0) {
@@ -871,6 +879,7 @@ export default function PlanningScreen({ route, navigation }) {
     setShowSuggestions(true);
     setLoading(false);
     shownHotelIdsRef.current = new Set();
+    flightPhaseRef.current = 'departure';
   }
 
   return (
@@ -966,13 +975,29 @@ export default function PlanningScreen({ route, navigation }) {
                     <View style={styles.hotelWrap}>
                       <FlightResults
                         options={msg.flight_options}
+                        flightPhase={msg.flightPhase || 'departure'}
                         onSave={(flight) => {
                           const norm = s => (s || '').toLowerCase().trim();
                           const city = norm(activeDestRef.current || '');
-                          const existing = wishlist.find(w => norm(w.city) === city);
-                          if (existing) {
-                            updateWishlistItem(existing.id, { flight_info: flight });
-                            setTimeout(() => send(`Flight saved. Now let's find a hotel in ${existing.city}.`), 300);
+                          const existing = wishlist.find(w =>
+                            norm(w.city) === city ||
+                            norm(w.city.split(',')[0]) === norm(city.split(',')[0])
+                          );
+                          const phase = msg.flightPhase || 'departure';
+                          if (phase === 'departure') {
+                            if (existing) {
+                              updateWishlistItem(existing.id, { flight_info: { outbound: flight } });
+                              const homeAirport = ariaPreferences.home_airports?.[0] || 'home';
+                              setTimeout(() => send(`Departure flight saved. Now let's find my return flight back to ${homeAirport}.`), 300);
+                            }
+                            flightPhaseRef.current = 'return';
+                          } else {
+                            if (existing) {
+                              const currentInfo = existing.flight_info || {};
+                              updateWishlistItem(existing.id, { flight_info: { ...currentInfo, return: flight } });
+                              setTimeout(() => send(`Return flight saved. Now let's find a hotel in ${existing.city}.`), 300);
+                            }
+                            flightPhaseRef.current = 'departure';
                           }
                         }}
                       />
@@ -999,8 +1024,11 @@ export default function PlanningScreen({ route, navigation }) {
                         onRefresh={(refreshMsg) => send(refreshMsg)}
                         onAddToTrip={(hotel) => {
                           const norm = s => (s || '').toLowerCase().trim();
-                          const cityName = (msg.hotelSearchParams?.location || activeDestRef.current || '').split(',')[0].trim();
-                          const existing = wishlist.find(w => norm(w.city) === norm(cityName));
+                          const rawCity = (msg.hotelSearchParams?.location || activeDestRef.current || '').trim();
+                          const existing = wishlist.find(w =>
+                            norm(w.city) === norm(rawCity) ||
+                            norm(w.city.split(',')[0]) === norm(rawCity.split(',')[0])
+                          );
                           if (existing) {
                             updateWishlistItem(existing.id, {
                               hotel_info: {
@@ -1017,7 +1045,7 @@ export default function PlanningScreen({ route, navigation }) {
                               },
                             });
                           }
-                          const city = existing?.city || cityName;
+                          const city = existing?.city || rawCity;
                           if (city) setTimeout(() => send(`Hotel added to my ${city} trip.`), 300);
                         }}
                       />
