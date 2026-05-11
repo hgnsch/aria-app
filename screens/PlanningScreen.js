@@ -464,18 +464,20 @@ function restaurantIntro(text) {
   return (cut > 0 ? text.slice(0, cut) : text).trim();
 }
 
-function RestaurantCard({ restaurant, onAddToTrip }) {
+function RestaurantCard({ restaurant, selected, onToggle }) {
   const priceColor = { '$': colors.accent, '$$': colors.text, '$$$': colors.primary, '$$$$': colors.primary };
-  const [added, setAdded] = useState(false);
-
-  function handleAdd() {
-    if (added) return;
-    setAdded(true);
-    onAddToTrip?.(restaurant);
-  }
 
   return (
-    <View style={rsc.card}>
+    <TouchableOpacity
+      style={[rsc.card, selected && rsc.cardSelected]}
+      onPress={onToggle}
+      activeOpacity={0.85}
+    >
+      {selected && (
+        <View style={rsc.checkBadge}>
+          <Text style={rsc.checkText}>✓</Text>
+        </View>
+      )}
       <PhotoCarousel photos={restaurant.photos || []} height={130} />
       <View style={rsc.info}>
         <View style={rsc.nameRow}>
@@ -503,25 +505,51 @@ function RestaurantCard({ restaurant, onAddToTrip }) {
         {restaurant.why_it_fits ? (
           <Text style={rsc.whyItFits} numberOfLines={2}>{restaurant.why_it_fits}</Text>
         ) : null}
-        <TouchableOpacity
-          style={[rsc.addBtn, added && rsc.addBtnDone]}
-          onPress={handleAdd}
-          disabled={added}
-          activeOpacity={0.8}
-        >
-          <Text style={rsc.addBtnText}>{added ? 'ADDED TO TRIP' : 'ADD TO TRIP'}</Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
-function RestaurantResults({ restaurants, onAddToTrip }) {
+function RestaurantResults({ restaurants, onAddSelected }) {
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  function toggle(key) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  const selectedList = restaurants.filter((r, i) => selectedIds.has(r.id || String(i)));
+
   return (
     <View style={rsc.block}>
-      {restaurants.map((r, i) => (
-        <RestaurantCard key={r.id || i} restaurant={r} onAddToTrip={onAddToTrip} />
-      ))}
+      {restaurants.map((r, i) => {
+        const key = r.id || String(i);
+        return (
+          <RestaurantCard
+            key={key}
+            restaurant={r}
+            selected={selectedIds.has(key)}
+            onToggle={() => toggle(key)}
+          />
+        );
+      })}
+      {selectedList.length > 0 && (
+        <TouchableOpacity
+          style={rsc.addAllBtn}
+          onPress={() => {
+            onAddSelected(selectedList);
+            setSelectedIds(new Set());
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={rsc.addAllBtnText}>
+            ADD {selectedList.length} RESTAURANT{selectedList.length > 1 ? 'S' : ''} TO TRIP
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -533,6 +561,14 @@ const rsc = StyleSheet.create({
     borderRadius: 12, borderWidth: 0.5, borderColor: colors.border,
     overflow: 'hidden',
   },
+  cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
+  checkBadge: {
+    position: 'absolute', top: 10, right: 10, zIndex: 10,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkText: { color: colors.white, fontSize: 13, fontWeight: '700' },
   info: { padding: 10, gap: 4 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { flex: 1, fontSize: 14, fontWeight: '600', color: colors.text },
@@ -543,12 +579,12 @@ const rsc = StyleSheet.create({
   cuisine: { fontSize: 11, color: colors.textMuted, flex: 1 },
   address: { fontSize: 11, color: colors.textDim },
   whyItFits: { fontSize: 11, color: colors.textMuted, fontStyle: 'italic' },
-  addBtn: {
-    marginTop: 6, backgroundColor: colors.primary,
-    borderRadius: 8, paddingVertical: 10, alignItems: 'center',
+  addAllBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 10, paddingVertical: 13, alignItems: 'center',
+    marginTop: 4,
   },
-  addBtnDone: { backgroundColor: colors.primaryLight },
-  addBtnText: { fontSize: 11, fontWeight: '600', color: colors.white, letterSpacing: 1 },
+  addAllBtnText: { fontSize: 11, fontWeight: '700', color: colors.white, letterSpacing: 1 },
 });
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
@@ -638,7 +674,7 @@ export default function PlanningScreen({ route, navigation }) {
   const scrollRef = useRef(null);
   const shownHotelIdsRef = useRef(new Set());
   const activeDestRef = useRef(null);
-  const pendingRestaurantRef = useRef(null);
+  const pendingRestaurantsRef = useRef([]);
   const pendingAutoSendRef = useRef(null);
 
   useEffect(() => {
@@ -747,7 +783,11 @@ export default function PlanningScreen({ route, navigation }) {
         data.tool_calls.forEach(tool => {
           if (tool.name === 'save_restaurant_to_itinerary' && tool.result?.success) {
             const { destination, day_index, time, end_time, restaurant_name, meal_type, notes } = tool.result;
-            const restaurant = pendingRestaurantRef.current;
+            // Match by name so multiple pending restaurants resolve correctly
+            const pending = pendingRestaurantsRef.current;
+            const restaurant = pending.find(
+              r => norm(r.name) === norm(restaurant_name)
+            ) ?? pending[0] ?? null;
             const cityName = (destination || '').split(',')[0].trim();
             const itin = itineraries.find(i => norm(i.city) === norm(cityName));
             if (itin && itin.days?.[day_index]) {
@@ -771,7 +811,8 @@ export default function PlanningScreen({ route, navigation }) {
               const updatedSlots = [...(itin.days[day_index].slots || []), newSlot]
                 .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
               updateItineraryDay(itin.id, day_index, updatedSlots);
-              pendingRestaurantRef.current = null;
+              // Remove this restaurant from pending list
+              pendingRestaurantsRef.current = pending.filter(r => norm(r.name) !== norm(restaurant_name));
             }
           }
           if (tool.name === 'wishlist_update') {
@@ -941,10 +982,11 @@ export default function PlanningScreen({ route, navigation }) {
                     <View style={styles.hotelWrap}>
                       <RestaurantResults
                         restaurants={msg.restaurants}
-                        onAddToTrip={(restaurant) => {
-                          pendingRestaurantRef.current = restaurant;
+                        onAddSelected={(selected) => {
+                          pendingRestaurantsRef.current = selected;
+                          const names = selected.map(r => r.name).join(', ');
                           const city = activeDestRef.current || '';
-                          send(`I'd like to add ${restaurant.name} to my ${city} trip.`);
+                          send(`I'd like to add ${names} to my ${city} trip.`);
                         }}
                       />
                     </View>
